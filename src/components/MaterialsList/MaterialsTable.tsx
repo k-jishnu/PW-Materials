@@ -137,16 +137,18 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
               <span>Add material</span>
             </button>
 
-            <button
-              type="button"
-              onClick={onCommitAll}
-              className="btn btn-success btn-sm"
-              style={{ height: '36px' }}
-              title="Save all materials to purchases"
-            >
-              <Check size={14} strokeWidth={2.5} />
-              <span>Save all ({materials.length})</span>
-            </button>
+            {materials.some((m) => m.status === 'draft') && (
+              <button
+                type="button"
+                onClick={onCommitAll}
+                className="btn btn-success btn-sm"
+                style={{ height: '36px' }}
+                title="Save all draft materials to Supabase"
+              >
+                <Check size={14} strokeWidth={2.5} />
+                <span>Save all drafts ({materials.filter((m) => m.status === 'draft').length})</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -477,16 +479,27 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
 
                       <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                          <button
-                            type="button"
-                            onClick={() => onCommit(mat.id)}
-                            className="btn btn-success btn-sm"
-                            style={{ height: '30px', padding: '0 10px', fontSize: '12px' }}
-                            title="Save to purchases"
-                          >
-                            <CheckCircle size={13} strokeWidth={2.5} />
-                            <span>Save</span>
-                          </button>
+                          {mat.status === 'saved' ? (
+                            <span
+                              className="badge badge-success"
+                              style={{ height: '28px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '0 8px' }}
+                              title="Saved in Supabase"
+                            >
+                              <CheckCircle size={12} strokeWidth={2.5} />
+                              <span>Saved</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onCommit(mat.id)}
+                              className="btn btn-success btn-sm"
+                              style={{ height: '30px', padding: '0 10px', fontSize: '12px' }}
+                              title="Save to Supabase & Purchases"
+                            >
+                              <CheckCircle size={13} strokeWidth={2.5} />
+                              <span>Save</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => onDelete(mat.id)}

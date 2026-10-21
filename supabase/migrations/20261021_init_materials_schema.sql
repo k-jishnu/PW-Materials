@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.invoices (
 CREATE TABLE IF NOT EXISTS public.materials (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  sku TEXT,
+  sku TEXT UNIQUE,
   name TEXT NOT NULL,
   normalized_name TEXT,
   description TEXT,

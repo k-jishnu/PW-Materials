@@ -5,10 +5,44 @@ import { scoreToConfidenceLevel } from './useAIRecognition';
 import { supabaseService } from '@/services/supabaseClient';
 import confetti from 'canvas-confetti';
 
+const mapPurchaseToMaterial = (p: PurchaseRecord): Material => ({
+  id: p.id,
+  sku: p.sku || `PUR-${p.id.slice(-6)}`,
+  item: { value: p.item, confidence: 'high', confidenceScore: 1.0, source: p.aiRecognized ? 'ai' : 'manual' },
+  vendor: { value: p.vendor, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
+  price: { value: p.unitPrice, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
+  company: { value: p.company || 'PW Materials', confidence: 'high', confidenceScore: 1.0, source: 'manual' },
+  quantity: { value: { value: p.quantity, unit: p.unit }, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
+  gst: { rate: p.gstRate, isGSTInvoice: p.isGSTInvoice, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
+  photoUrl: p.photoUrl,
+  createdAt: p.createdAt || p.date,
+  updatedAt: p.createdAt || p.date,
+  status: 'saved',
+});
+
 export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void) => {
   const [draftMaterials, setDraftMaterials] = useState<Material[]>(() => {
     return supabaseService.getDraftMaterials();
   });
+  const [savedMaterials, setSavedMaterials] = useState<Material[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const refreshMaterials = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const purchases = await supabaseService.getPurchases();
+      const mapped = purchases.map(mapPurchaseToMaterial);
+      setSavedMaterials(mapped);
+    } catch (e) {
+      console.warn('Error refreshing materials from Supabase:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshMaterials();
+  }, [refreshMaterials]);
 
   // Keep draft materials synced to local storage
   useEffect(() => {
@@ -143,45 +177,45 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
     []
   );
 
-  // Manual material addition
-  const addManualMaterial = useCallback((itemData: {
-    item: string;
-    vendor: string;
-    price: number;
-    company: string;
-    qtyValue: number;
-    qtyUnit: string;
-    gstRate: number;
-    isGSTInvoice: boolean;
-  }) => {
-    const generatedSKU = `MAN-${Date.now().toString().slice(-6)}`;
-    const newMaterial: Material = {
-      id: `mat-${Date.now()}`,
-      sku: generatedSKU,
-      item: { value: itemData.item, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
-      vendor: { value: itemData.vendor, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
-      price: { value: itemData.price, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
-      company: { value: itemData.company, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
-      quantity: {
-        value: { value: itemData.qtyValue, unit: itemData.qtyUnit },
-        confidence: 'high',
-        confidenceScore: 1.0,
-        source: 'manual',
-      },
-      gst: {
-        rate: itemData.gstRate,
+  // Manual material addition - directly inserts into Supabase and refreshes
+  const addManualMaterial = useCallback(
+    async (itemData: {
+      item: string;
+      vendor: string;
+      price: number;
+      company: string;
+      qtyValue: number;
+      qtyUnit: string;
+      gstRate: number;
+      isGSTInvoice: boolean;
+    }) => {
+      const res = await supabaseService.insertMaterial({
+        name: itemData.item,
+        vendor: itemData.vendor,
+        company: itemData.company,
+        price: itemData.price,
+        quantity: itemData.qtyValue,
+        unit: itemData.qtyUnit,
+        gstRate: itemData.gstRate,
         isGSTInvoice: itemData.isGSTInvoice,
-        confidence: 'high',
-        confidenceScore: 1.0,
-        source: 'manual',
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      status: 'draft',
-    };
+      });
 
-    setDraftMaterials((prev) => [newMaterial, ...prev]);
-  }, []);
+      if (!res.success) {
+        return { success: false, error: res.error || 'Failed to save material to Supabase' };
+      }
+
+      await refreshMaterials();
+
+      try {
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+      } catch {
+        // Ignore
+      }
+
+      return { success: true };
+    },
+    [refreshMaterials]
+  );
 
   // Update a field inline
   const updateMaterialField = useCallback(
@@ -231,9 +265,19 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
     []
   );
 
-  const deleteMaterial = useCallback((id: string) => {
-    setDraftMaterials((prev) => prev.filter((m) => m.id !== id));
-  }, []);
+  const deleteMaterial = useCallback(
+    async (id: string) => {
+      const isDraft = draftMaterials.some((m) => m.id === id);
+      if (isDraft) {
+        setDraftMaterials((prev) => prev.filter((m) => m.id !== id));
+        return;
+      }
+
+      await supabaseService.deletePurchase(id);
+      await refreshMaterials();
+    },
+    [draftMaterials, refreshMaterials]
+  );
 
   const duplicateMaterial = useCallback((id: string) => {
     setDraftMaterials((prev) => {
@@ -281,11 +325,17 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         createdAt: new Date().toISOString(),
       };
 
+      // Save to Supabase and local purchases
+      const res = await supabaseService.addPurchase(purchaseRecord, mat);
+      if (!res.success) {
+        alert(`Supabase Error: ${res.error || 'Failed to save record'}`);
+        return;
+      }
+
       // Remove from draft
       setDraftMaterials((prev) => prev.filter((m) => m.id !== materialId));
 
-      // Save to Supabase and local purchases
-      await supabaseService.addPurchase(purchaseRecord, mat);
+      await refreshMaterials();
       onPurchaseAdded?.(purchaseRecord);
 
       // Trigger celebratory confetti
@@ -299,7 +349,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         // Ignore
       }
     },
-    [draftMaterials, onPurchaseAdded]
+    [draftMaterials, onPurchaseAdded, refreshMaterials]
   );
 
   const commitAllToPurchases = useCallback(async () => {
@@ -309,7 +359,11 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
   }, [draftMaterials, commitToPurchases]);
 
   return {
+    materials: [...draftMaterials, ...savedMaterials],
     draftMaterials,
+    savedMaterials,
+    isLoading,
+    refreshMaterials,
     addMaterialFromRecognition,
     addManualMaterial,
     updateMaterialField,

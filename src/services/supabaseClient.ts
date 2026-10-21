@@ -251,9 +251,145 @@ class SupabaseService {
   }
 
   /**
+   * Directly inserts a confirmed material into the Supabase 'materials' table,
+   * while also syncing to purchases and local cache.
+   */
+  public async insertMaterial(materialData: {
+    name: string;
+    sku?: string;
+    vendor: string;
+    company?: string;
+    price: number;
+    quantity: number;
+    unit?: string;
+    gstRate?: number;
+    isGSTInvoice?: boolean;
+    description?: string;
+    category?: string;
+  }): Promise<{ success: boolean; data?: any; error?: string }> {
+    // 1. Validation
+    if (!materialData.name || !materialData.name.trim()) {
+      return { success: false, error: 'Material Description / Name is required.' };
+    }
+    if (!materialData.vendor || !materialData.vendor.trim()) {
+      return { success: false, error: 'Supplier / Vendor is required.' };
+    }
+    if (materialData.price < 0) {
+      return { success: false, error: 'Price cannot be negative.' };
+    }
+    if (materialData.quantity <= 0) {
+      return { success: false, error: 'Quantity must be greater than zero.' };
+    }
+
+    const sku = materialData.sku?.trim() || `MAN-${Date.now().toString().slice(-6)}`;
+    const subTotal = materialData.price * materialData.quantity;
+    const isGST = Boolean(materialData.isGSTInvoice);
+    const rate = isGST ? Number(materialData.gstRate ?? 18) : 0;
+    const gstAmount = (subTotal * rate) / 100;
+    const netAmount = subTotal + gstAmount;
+
+    if (!this.client) {
+      return { success: false, error: 'Supabase client is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.' };
+    }
+
+    try {
+      // Derive authenticated owner_id if session exists
+      let ownerId: string | null = null;
+      try {
+        const { data: { user } } = await this.client.auth.getUser();
+        ownerId = user?.id || null;
+      } catch {
+        ownerId = null;
+      }
+
+      // 1. Insert into public.materials
+      const { data: matRecord, error: matError } = await this.client
+        .from('materials')
+        .insert([
+          {
+            owner_id: ownerId,
+            sku,
+            name: materialData.name.trim(),
+            normalized_name: materialData.name.toLowerCase().trim(),
+            description: materialData.description || null,
+            default_unit: materialData.unit || 'Nos',
+            standard_price: materialData.price,
+            category: materialData.category || 'General',
+          },
+        ])
+        .select()
+        .single();
+
+      if (matError) {
+        console.error('[Supabase Insert Error]:', matError);
+        return { success: false, error: matError.message || 'Database error inserting material.' };
+      }
+
+      // 2. Also insert corresponding purchase record for ledger & export consistency
+      const purchaseRecord: PurchaseRecord = {
+        id: `pur-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        item: materialData.name.trim(),
+        sku,
+        vendor: materialData.vendor.trim(),
+        company: materialData.company?.trim() || 'PW Materials',
+        quantity: materialData.quantity,
+        unit: materialData.unit || 'Nos',
+        unitPrice: materialData.price,
+        totalPrice: subTotal,
+        gstRate: rate,
+        gstAmount,
+        netAmount,
+        isGSTInvoice: isGST,
+        aiRecognized: false,
+        confidenceAverage: 1.0,
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        await this.client.from('purchases').insert([purchaseRecord]);
+      } catch (err: any) {
+        console.warn('Notice: purchases sync secondary table:', err?.message);
+      }
+
+      // Update local storage cache
+      const localPurchases = await this.getPurchases();
+      this.savePurchasesLocally([purchaseRecord, ...localPurchases.filter((p) => p.id !== purchaseRecord.id)]);
+
+      return { success: true, data: matRecord };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to connect to Supabase.' };
+    }
+  }
+
+  /**
+   * Fetches materials from the Supabase 'materials' table
+   */
+  public async getMaterials(): Promise<any[]> {
+    if (this.client) {
+      try {
+        const { data, error } = await this.client
+          .from('materials')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          return data;
+        }
+      } catch (err: any) {
+        console.warn('Error fetching materials from Supabase:', err.message);
+      }
+    }
+    return [];
+  }
+
+  /**
    * Adds a purchase record to Supabase and local storage
    */
-  public async addPurchase(record: PurchaseRecord, materialSource?: Material): Promise<void> {
+  public async addPurchase(
+    record: PurchaseRecord,
+    materialSource?: Material
+  ): Promise<{ success: boolean; error?: string }> {
     // 1. Save to local storage first for resilience
     const current = await this.getPurchases();
     const updated = [record, ...current.filter((r) => r.id !== record.id)];
@@ -267,11 +403,20 @@ class SupabaseService {
           storagePath = await this.uploadInvoiceImage(materialSource.photoUrl);
         }
 
+        let ownerId: string | null = null;
+        try {
+          const { data: { user } } = await this.client.auth.getUser();
+          ownerId = user?.id || null;
+        } catch {
+          ownerId = null;
+        }
+
         // A. Insert into normalized invoices & invoice_items
         const invoiceUUID = crypto.randomUUID();
         const { error: invError } = await this.client.from('invoices').insert([
           {
             id: invoiceUUID,
+            owner_id: ownerId,
             supplier_name: record.vendor,
             invoice_number: materialSource?.invoiceNumber || `INV-${record.id.slice(-6)}`,
             invoice_date: record.date,
@@ -285,48 +430,64 @@ class SupabaseService {
           },
         ]);
 
-        if (!invError) {
-          // B. Insert into invoice_items
-          await this.client.from('invoice_items').insert([
-            {
-              invoice_id: invoiceUUID,
-              item_name: record.item,
-              description: materialSource?.notes || null,
-              quantity: record.quantity,
-              unit: record.unit,
-              unit_price: record.unitPrice,
-              tax_amount: record.gstAmount,
-              line_total: record.netAmount,
-              confidence_score: record.confidenceAverage,
-              review_status: 'confirmed',
-            },
-          ]);
-
-          // C. Upsert into materials catalog
-          await this.client.from('materials').upsert(
-            [
-              {
-                sku: record.sku,
-                name: record.item,
-                normalized_name: record.item.toLowerCase().trim(),
-                default_unit: record.unit,
-                standard_price: record.unitPrice,
-              },
-            ],
-            { onConflict: 'sku' }
-          );
+        if (invError) {
+          console.error('[Supabase Invoices Error]:', invError);
+          return { success: false, error: invError.message };
         }
-      } catch (err: any) {
-        console.warn('Normalized table write notice, ensuring purchases table sync:', err.message);
-      }
 
-      // D. Sync to purchases table for backward compatibility
-      try {
-        await this.client.from('purchases').insert([record]);
-      } catch (e: any) {
-        console.warn('Purchases table insert notice:', e.message);
+        // B. Insert into invoice_items
+        const { error: itemError } = await this.client.from('invoice_items').insert([
+          {
+            invoice_id: invoiceUUID,
+            item_name: record.item,
+            description: materialSource?.notes || null,
+            quantity: record.quantity,
+            unit: record.unit,
+            unit_price: record.unitPrice,
+            tax_amount: record.gstAmount,
+            line_total: record.netAmount,
+            confidence_score: record.confidenceAverage,
+            review_status: 'confirmed',
+          },
+        ]);
+
+        if (itemError) {
+          console.error('[Supabase Invoice Items Error]:', itemError);
+          return { success: false, error: itemError.message };
+        }
+
+        // C. Upsert into materials catalog
+        const { error: matError } = await this.client.from('materials').upsert(
+          [
+            {
+              owner_id: ownerId,
+              sku: record.sku,
+              name: record.item,
+              normalized_name: record.item.toLowerCase().trim(),
+              default_unit: record.unit,
+              standard_price: record.unitPrice,
+            },
+          ],
+          { onConflict: 'sku' }
+        );
+
+        if (matError) {
+          console.warn('[Supabase Materials Upsert Notice]:', matError.message);
+        }
+
+        // D. Sync to purchases table for backward compatibility
+        const { error: purError } = await this.client.from('purchases').upsert([record], { onConflict: 'id' });
+        if (purError) {
+          console.warn('[Supabase Purchases Sync Notice]:', purError.message);
+        }
+
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Supabase request failed.' };
       }
     }
+
+    return { success: true };
   }
 
   public async deletePurchase(id: string): Promise<void> {

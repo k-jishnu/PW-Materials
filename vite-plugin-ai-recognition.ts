@@ -37,8 +37,9 @@ export function aiRecognitionPlugin(): Plugin {
               return;
             }
 
-            const apiKey = process.env.OPENAI_API_KEY || envConfig.OPENAI_API_KEY || '';
-            const model = process.env.OPENAI_MODEL || envConfig.OPENAI_MODEL || 'gpt-4o-mini';
+            const dynamicEnv = loadEnv(process.env.NODE_ENV || 'development', process.cwd(), '');
+            const apiKey = process.env.OPENAI_API_KEY || dynamicEnv.OPENAI_API_KEY || envConfig.OPENAI_API_KEY || '';
+            const model = process.env.OPENAI_MODEL || dynamicEnv.OPENAI_MODEL || envConfig.OPENAI_MODEL || 'gpt-4o-mini';
 
             if (!apiKey) {
               res.statusCode = 422;

@@ -40,11 +40,14 @@ export class ResilientGatewayAPI {
         lastError = error instanceof Error ? error : new Error(String(error));
         console.warn(`[ResilientGateway] Attempt ${attempt + 1} failed:`, lastError.message);
 
-        // Do not retry client auth/validation errors (401, 403, 400)
+        // Do not retry client auth/validation/configuration errors
         if (
           lastError.message.includes('401') ||
           lastError.message.includes('403') ||
-          lastError.message.includes('400')
+          lastError.message.includes('400') ||
+          lastError.message.includes('422') ||
+          lastError.message.includes('OPENAI_API_KEY') ||
+          lastError.message.includes('Incorrect API key')
         ) {
           throw lastError;
         }

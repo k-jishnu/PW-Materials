@@ -45,6 +45,7 @@ export const App: React.FC = () => {
   };
 
   const {
+    materials,
     draftMaterials,
     addMaterialFromRecognition,
     addManualMaterial,
@@ -152,7 +153,7 @@ export const App: React.FC = () => {
         {/* 2. Materials List & Inline Table Section */}
         <div ref={materialsSectionRef} id="section-materials" style={{ scrollMarginTop: '80px' }}>
           <MaterialsTable
-            materials={draftMaterials}
+            materials={materials}
             onCommit={commitToPurchases}
             onCommitAll={commitAllToPurchases}
             onDelete={deleteMaterial}

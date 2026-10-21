@@ -284,20 +284,38 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
             paddingTop: '10px',
             borderTop: '1.5px solid var(--color-border)',
           }}>
-            <button
-              type="button"
-              onClick={() => onCommit(material.id)}
-              className="btn btn-success btn-sm"
-              style={{
-                flex: 1,
-                height: '36px',
-                fontSize: '13px',
-              }}
-              title="Save to purchases"
-            >
-              <Check size={14} strokeWidth={2.5} />
-              <span>Save to purchases</span>
-            </button>
+            {material.status === 'saved' ? (
+              <div
+                className="badge badge-success"
+                style={{
+                  flex: 1,
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  fontSize: '13px',
+                }}
+              >
+                <Check size={14} strokeWidth={2.5} />
+                <span>Saved in Supabase</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onCommit(material.id)}
+                className="btn btn-success btn-sm"
+                style={{
+                  flex: 1,
+                  height: '36px',
+                  fontSize: '13px',
+                }}
+                title="Save to purchases & Supabase"
+              >
+                <Check size={14} strokeWidth={2.5} />
+                <span>Save to purchases</span>
+              </button>
+            )}
 
             <div style={{ display: 'flex', gap: '4px' }}>
               <button

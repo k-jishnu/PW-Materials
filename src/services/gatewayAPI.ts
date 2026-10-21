@@ -65,27 +65,26 @@ export class GatewayAPI {
           onProgress?.(95);
           return this.mapStructuredToRecognitionResult(data.result);
         }
+        throw new Error('Malformed recognition response from server.');
       } else {
         const errData = await res.json().catch(() => ({}));
         if (errData.code === 'MISSING_API_KEY') {
-          console.info(
-            '[AI Vision] OPENAI_API_KEY is not configured on the server. Falling back to simulated heuristic mode for development.'
-          );
-        } else {
-          console.warn('[AI Vision Endpoint Error]:', errData.error || res.statusText);
+          throw new Error('OPENAI_API_KEY is missing. Please configure OPENAI_API_KEY in your server environment (.env).');
         }
+        throw new Error(errData.error || `AI Recognition failed (HTTP ${res.status}: ${res.statusText})`);
       }
     } catch (networkErr: any) {
-      console.warn('[AI Vision] Server endpoint unreachable, checking client configuration:', networkErr.message);
+      // Re-throw if it's already an explicit API or configuration error
+      if (
+        networkErr.message?.includes('OPENAI_API_KEY') ||
+        networkErr.message?.includes('AI Recognition failed') ||
+        networkErr.message?.includes('OpenAI Vision API') ||
+        networkErr.message?.includes('Malformed recognition')
+      ) {
+        throw networkErr;
+      }
+      throw new Error(`AI Recognition server unreachable: ${networkErr.message || 'Network error'}`);
     }
-
-    // 2. Custom live gateway fallback if user configured one
-    if (this.config.useLiveClaudeGateway && this.config.apiKey && this.config.baseUrl) {
-      return this.callLiveGateway(imageBase64, onProgress);
-    }
-
-    // 3. High-fidelity simulated recognition fallback
-    return this.simulateRecognition(imageBase64, onProgress);
   }
 
   /**

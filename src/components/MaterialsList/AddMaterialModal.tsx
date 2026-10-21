@@ -14,7 +14,7 @@ interface AddMaterialModalProps {
     qtyUnit: string;
     gstRate: number;
     isGSTInvoice: boolean;
-  }) => void;
+  }) => Promise<{ success: boolean; error?: string } | void> | void;
 }
 
 export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
@@ -30,32 +30,62 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
   const [qtyUnit, setQtyUnit] = useState('Nos');
   const [gstRate, setGstRate] = useState(18);
   const [isGSTInvoice, setIsGSTInvoice] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!item.trim() || !vendor.trim()) {
-      alert('Please provide at least Material Name and Vendor.');
+    setErrorMessage(null);
+
+    if (!item.trim()) {
+      setErrorMessage('Material Description / Name is required.');
+      return;
+    }
+    if (!vendor.trim()) {
+      setErrorMessage('Supplier / Vendor is required.');
+      return;
+    }
+    if (price === '' || Number(price) < 0) {
+      setErrorMessage('Valid unit price is required (0 or greater).');
+      return;
+    }
+    if (qtyValue === '' || Number(qtyValue) <= 0) {
+      setErrorMessage('Quantity must be greater than zero.');
       return;
     }
 
-    onAdd({
-      item: item.trim(),
-      vendor: vendor.trim(),
-      price: Number(price) || 0,
-      company: company.trim() || 'PW Materials',
-      qtyValue: Number(qtyValue) || 1,
-      qtyUnit: qtyUnit.trim() || 'Nos',
-      gstRate: isGSTInvoice ? Number(gstRate) : 0,
-      isGSTInvoice,
-    });
+    setIsSubmitting(true);
+    try {
+      const res = await onAdd({
+        item: item.trim(),
+        vendor: vendor.trim(),
+        price: Number(price) || 0,
+        company: company.trim() || 'PW Materials',
+        qtyValue: Number(qtyValue) || 1,
+        qtyUnit: qtyUnit.trim() || 'Nos',
+        gstRate: isGSTInvoice ? Number(gstRate) : 0,
+        isGSTInvoice,
+      });
 
-    // Reset
-    setItem('');
-    setVendor('');
-    setPrice('');
-    onClose();
+      if (res && res.success === false) {
+        setErrorMessage(res.error || 'Failed to save material to Supabase.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Reset on success
+      setItem('');
+      setVendor('');
+      setPrice('');
+      setErrorMessage(null);
+      setIsSubmitting(false);
+      onClose();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error adding material.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -244,13 +274,53 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             )}
           </div>
 
+          {errorMessage && (
+            <div
+              style={{
+                background: '#FEE2E2',
+                border: '2px solid #EF4444',
+                color: '#991B1B',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '13px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <span>⚠️</span>
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-            <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="btn btn-secondary"
+              style={{ flex: 1 }}
+            >
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-              <Check size={15} />
-              <span>Add material</span>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn btn-primary"
+              style={{ flex: 1, opacity: isSubmitting ? 0.7 : 1 }}
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="animate-spin">⟳</span>
+                  <span>Saving to Supabase...</span>
+                </>
+              ) : (
+                <>
+                  <Check size={15} />
+                  <span>Add material</span>
+                </>
+              )}
             </button>
           </div>
         </form>
