@@ -1,0 +1,527 @@
+/* src/styles/globals.css */
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  font-family: var(--font-serif);
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  min-height: 100%;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+@media (max-width: 768px) {
+  body {
+    padding-bottom: calc(58px + var(--safe-bottom));
+  }
+}
+
+/* Typography Scale — Merriweather */
+h1 {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+
+h3 {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+h4 {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+p, span, div, label {
+  font-family: var(--font-serif);
+  line-height: 1.5;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* App Container */
+.app-container {
+  width: 100%;
+  max-width: 1140px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 28px 20px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    padding: 14px 14px 88px;
+    gap: 16px;
+  }
+}
+
+/* Professional Neo-Brutalist Card */
+.card {
+  background: var(--bg-surface);
+  border: 2.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  box-shadow: var(--shadow-hard);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+@media (max-width: 768px) {
+  .card {
+    padding: 16px 14px;
+    border-radius: var(--radius-md);
+    border-width: 2px;
+    box-shadow: var(--shadow-hard-sm);
+  }
+}
+
+/* Table Scroll Container */
+.table-scroll-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Backward-compatible card aliases */
+.card-white {
+  background: var(--bg-surface);
+  border: 2.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-hard);
+}
+
+.card-gradient, .card-blue, .card-yellow, .card-purple, .card-green, .card-coral, .card-teal {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 2.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  box-shadow: var(--shadow-hard);
+}
+
+/* Neo-Brutalist Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--control-height);
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-serif);
+  cursor: pointer;
+  border: 2.5px solid var(--color-border);
+  box-shadow: var(--shadow-hard-sm);
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+  user-select: none;
+  white-space: nowrap;
+  outline: none;
+  color: #202020;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-hard);
+}
+
+.btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-hard-pressed);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-border);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Primary Button: Coral background, black text, 4px hard shadow */
+.btn-primary {
+  background-color: var(--color-coral);
+  color: #202020;
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-hard);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-coral-hover);
+  box-shadow: 5px 5px 0 var(--color-border);
+}
+
+/* Secondary Button: White/Cream background, black text, 3px hard shadow */
+.btn-secondary {
+  background-color: var(--bg-surface);
+  color: #202020;
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-surface-subtle);
+  box-shadow: var(--shadow-hard);
+}
+
+/* Success Button: Teal background, black text */
+.btn-success {
+  background-color: var(--color-teal);
+  color: #202020;
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: var(--color-teal-hover);
+  box-shadow: var(--shadow-hard);
+}
+
+/* Destructive / Danger: Coral background, black text */
+.btn-danger, .btn-destructive {
+  background-color: var(--color-coral);
+  color: #202020;
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.btn-danger:hover:not(:disabled), .btn-destructive:hover:not(:disabled) {
+  background-color: var(--color-coral-hover);
+  box-shadow: var(--shadow-hard);
+}
+
+.btn-warning {
+  background-color: var(--color-yellow);
+  color: #202020;
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.btn-sm {
+  height: var(--control-height-sm);
+  padding: 0 12px;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
+  border-width: 2px;
+  box-shadow: var(--shadow-hard-xs);
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border: 2px solid var(--color-border);
+  box-shadow: var(--shadow-hard-xs);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+  outline: none;
+}
+
+.btn-icon:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-hard-sm);
+  background-color: var(--bg-surface-subtle);
+}
+
+.btn-icon:active {
+  transform: translate(1px, 1px);
+  box-shadow: var(--shadow-hard-pressed);
+}
+
+.btn-icon:focus-visible {
+  outline: 2px solid var(--color-border);
+  outline-offset: 1px;
+}
+
+.btn-outline-white {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-hard-xs);
+}
+
+/* Neo-Brutalist Form Controls */
+.input-base {
+  width: 100%;
+  height: var(--control-height);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: var(--bg-surface);
+  font-size: 14px;
+  font-family: var(--font-serif);
+  color: var(--text-primary);
+  outline: none;
+  transition: box-shadow 0.1s ease;
+  box-sizing: border-box;
+}
+
+.input-base::placeholder {
+  color: var(--text-muted);
+}
+
+.input-base:hover:not(:disabled):not(:focus) {
+  border-color: var(--color-border);
+}
+
+.input-base:focus {
+  border-color: var(--color-border);
+  box-shadow: 3px 3px 0 var(--color-border);
+}
+
+.input-base:disabled {
+  background-color: var(--bg-surface-subtle);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Header */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg-surface);
+  border-bottom: 2.5px solid var(--color-border);
+  height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
+  box-shadow: 0 3px 0 rgba(32, 32, 32, 0.08);
+}
+
+.desktop-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface-subtle);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  box-shadow: 2px 2px 0 var(--color-border);
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 14px;
+    height: 54px;
+  }
+  .desktop-nav {
+    display: none !important;
+  }
+  .storage-indicator {
+    display: none !important;
+  }
+}
+
+/* Bottom Navigation (Mobile Only) */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 58px;
+  background: var(--bg-surface);
+  border-top: 2.5px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 40;
+  padding-bottom: var(--safe-bottom);
+  box-shadow: 0 -3px 0 rgba(32, 32, 32, 0.08);
+}
+
+@media (min-width: 769px) {
+  .bottom-nav {
+    display: none !important;
+  }
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  transition: all 0.12s ease;
+  font-family: var(--font-serif);
+}
+
+.bottom-nav-item.active {
+  color: #202020;
+  font-weight: 700;
+}
+
+/* Neo-Brutalist Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-serif);
+  line-height: 1.4;
+  border: 1.5px solid var(--color-border);
+  box-shadow: 1.5px 1.5px 0 var(--color-border);
+  color: #202020;
+}
+
+.badge-neutral {
+  background-color: var(--bg-surface-subtle);
+  color: var(--text-primary);
+}
+
+.badge-primary {
+  background-color: var(--color-coral);
+  color: #202020;
+}
+
+.badge-success, .badge-high {
+  background-color: var(--color-teal);
+  color: #202020;
+}
+
+.badge-warning, .badge-medium {
+  background-color: var(--color-yellow);
+  color: #202020;
+}
+
+.badge-error, .badge-low {
+  background-color: var(--color-coral);
+  color: #202020;
+}
+
+.badge-lavender {
+  background-color: var(--color-lavender);
+  color: #202020;
+}
+
+.badge-peach {
+  background-color: var(--color-peach);
+  color: #202020;
+}
+
+.badge-unknown {
+  background-color: var(--bg-surface-subtle);
+  color: var(--text-secondary);
+}
+
+/* Camera Flash */
+@keyframes cameraFlash {
+  0% { opacity: 0; }
+  50% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+.camera-flash-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: white;
+  pointer-events: none;
+  animation: cameraFlash 0.2s ease-out forwards;
+  z-index: 20;
+}
+
+/* Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+/* Clean Neo-Brutalist Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface-subtle);
+  border-left: 1px solid var(--color-border);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-yellow);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-coral);
+}

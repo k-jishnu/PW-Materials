@@ -1,0 +1,82 @@
+/* src/styles/tokens.css */
+/* Professional Neo-Brutalism Design Tokens */
+:root {
+  /* Core Palette */
+  --bg-page: #FFF4E8;              /* Warm cream page background */
+  --bg-surface: #FFFFFF;           /* Main card & table surface */
+  --bg-surface-subtle: #F4EBDD;    /* Muted cream surface */
+  --bg-surface-hover: #FAEDE0;
+
+  /* Primary Text & Outlines */
+  --color-border: #202020;         /* Crisp black outline */
+  --text-primary: #202020;         /* Bold black text */
+  --text-secondary: #5F5B55;       /* Muted brown/gray secondary text */
+  --text-muted: #8E877F;
+
+  /* Neo-Brutalist Accent Colors */
+  --color-coral: #FF6B6B;          /* Primary action color */
+  --color-coral-hover: #FA5252;
+  --color-teal: #43C9B8;           /* Success / positive actions */
+  --color-teal-hover: #32B8A7;
+  --color-yellow: #FFE66D;         /* Highlights & selected options */
+  --color-yellow-hover: #FAD948;
+  --color-lavender: #B79CED;       /* Supporting accent */
+  --color-peach: #FFAB78;          /* Supporting accent */
+
+  /* Semantic Aliases */
+  --color-primary: #FF6B6B;        /* Primary action is Coral */
+  --color-primary-hover: #FA5252;
+  --color-primary-active: #E03131;
+  --color-primary-text: #202020;   /* Black text on Coral for Neo-Brutalism */
+  
+  --color-success: #43C9B8;
+  --color-warning: #FFE66D;
+  --color-error: #FF6B6B;
+
+  --border-color: #202020;
+  --border-color-hover: #000000;
+  --border-color-focus: #202020;
+
+  /* Typography */
+  --font-serif: "Merriweather", Georgia, serif;
+  --font-sans: "Merriweather", Georgia, serif;
+  --font-mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Neo-Brutalist Hard Offset Shadows (NO BLUR!) */
+  --shadow-hard-xs: 2px 2px 0 #202020;
+  --shadow-hard-sm: 3px 3px 0 #202020;
+  --shadow-hard: 4px 4px 0 #202020;
+  --shadow-hard-lg: 6px 6px 0 #202020;
+  --shadow-hard-pressed: 1px 1px 0 #202020;
+
+  /* Aliases for general shadow tokens */
+  --shadow-xs: var(--shadow-hard-xs);
+  --shadow-sm: var(--shadow-hard-sm);
+  --shadow-md: var(--shadow-hard);
+  --shadow-lg: var(--shadow-hard-lg);
+
+  /* Spacing Scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Border Radii */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+
+  /* Controls */
+  --control-height: 42px;
+  --control-height-sm: 36px;
+  --control-height-lg: 46px;
+
+  /* Safe Area */
+  --safe-bottom: env(safe-area-inset-bottom, 16px);
+}
