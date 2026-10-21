@@ -344,19 +344,19 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
           {/* Detailed recovery messages for camera issues */}
           {cameraError === 'PERMISSION_DENIED' && (
             <div style={{
-              background: '#FEF2F2',
-              border: '1px solid #F87171',
+              background: 'var(--color-error)',
+              border: '2px solid var(--color-border)',
               padding: '14px 16px',
-              borderRadius: '12px',
-              color: '#991B1B',
+              borderRadius: 'var(--radius-md)',
+              color: '#202020',
               fontSize: '13px',
-              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.08)',
+              boxShadow: 'var(--shadow-hard-xs)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', marginBottom: '6px' }}>
-                <AlertCircle size={18} color="#DC2626" />
+                <AlertCircle size={18} color="#202020" />
                 <span>Camera Access Blocked in Browser</span>
               </div>
-              <p style={{ margin: '0 0 10px', color: '#7F1D1D', lineHeight: 1.5 }}>
+              <p style={{ margin: '0 0 10px', color: '#202020', lineHeight: 1.5 }}>
                 Your browser blocked camera permissions for this site.
                 <br />
                 <strong>To fix on Laptop / Desktop:</strong>
@@ -371,38 +371,16 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
                 <button
                   type="button"
                   onClick={startCamera}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    backgroundColor: '#DC2626',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-primary btn-sm"
+                  style={{ height: '34px' }}
                 >
                   <RefreshCw size={14} /> Retry Camera
                 </button>
                 <button
                   type="button"
                   onClick={triggerNativeCamera}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    backgroundColor: '#FFFFFF',
-                    color: '#B91C1C',
-                    border: '1px solid #FCA5A5',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ height: '34px' }}
                 >
                   <Camera size={14} /> Use Device Camera / File
                 </button>
@@ -412,56 +390,35 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
 
           {cameraError === 'DEVICE_BUSY' && (
             <div style={{
-              background: '#FFFBEB',
-              border: '1px solid #FCD34D',
+              background: 'var(--color-warning)',
+              border: '2px solid var(--color-border)',
               padding: '14px 16px',
-              borderRadius: '12px',
-              color: '#92400E',
+              borderRadius: 'var(--radius-md)',
+              color: '#202020',
               fontSize: '13px',
+              boxShadow: 'var(--shadow-hard-xs)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', marginBottom: '6px' }}>
-                <AlertCircle size={18} color="#D97706" />
+                <AlertCircle size={18} color="#202020" />
                 <span>Camera Is In Use</span>
               </div>
-              <p style={{ margin: '0 0 10px', lineHeight: 1.5 }}>
+              <p style={{ margin: '0 0 10px', lineHeight: 1.5, color: '#202020' }}>
                 Another application (such as Zoom, Microsoft Teams, or Skype) is currently using your webcam. Please close it and retry.
               </p>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   type="button"
                   onClick={startCamera}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    backgroundColor: '#D97706',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-primary btn-sm"
+                  style={{ height: '34px' }}
                 >
                   <RefreshCw size={14} /> Retry Camera
                 </button>
                 <button
                   type="button"
                   onClick={triggerFileUpload}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    backgroundColor: '#FFFFFF',
-                    color: '#92400E',
-                    border: '1px solid #FCD34D',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ height: '34px' }}
                 >
                   <FileUp size={14} /> Upload Invoice Instead
                 </button>
@@ -471,36 +428,26 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
 
           {cameraError === 'NO_DEVICE' && (
             <div style={{
-              background: '#FEF2F2',
-              border: '1px solid #F87171',
+              background: 'var(--color-error)',
+              border: '2px solid var(--color-border)',
               padding: '14px 16px',
-              borderRadius: '12px',
-              color: '#991B1B',
+              borderRadius: 'var(--radius-md)',
+              color: '#202020',
               fontSize: '13px',
+              boxShadow: 'var(--shadow-hard-xs)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', marginBottom: '6px' }}>
-                <AlertCircle size={18} color="#DC2626" />
+                <AlertCircle size={18} color="#202020" />
                 <span>No Camera Found</span>
               </div>
-              <p style={{ margin: '0 0 10px', lineHeight: 1.5 }}>
+              <p style={{ margin: '0 0 10px', lineHeight: 1.5, color: '#202020' }}>
                 No camera device was detected on your computer. You can upload an invoice image or bill file directly.
               </p>
               <button
                 type="button"
                 onClick={triggerFileUpload}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 14px',
-                  borderRadius: '8px',
-                  backgroundColor: '#DC2626',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
+                className="btn btn-primary btn-sm"
+                style={{ height: '34px' }}
               >
                 <Upload size={14} /> Upload Invoice File
               </button>
@@ -512,12 +459,13 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
             cameraError !== 'DEVICE_BUSY' &&
             cameraError !== 'NO_DEVICE' && (
               <div style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid #FCA5A5',
+                background: 'var(--color-error)',
+                border: '2px solid var(--color-border)',
                 padding: '12px 14px',
-                borderRadius: '10px',
-                color: '#991B1B',
+                borderRadius: 'var(--radius-md)',
+                color: '#202020',
                 fontSize: '12px',
+                boxShadow: 'var(--shadow-hard-xs)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                   <AlertCircle size={16} />
@@ -527,32 +475,16 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
                   <button
                     type="button"
                     onClick={triggerNativeCamera}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      backgroundColor: '#FFFFFF',
-                      color: '#B91C1C',
-                      border: '1px solid #FCA5A5',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ height: '30px' }}
                   >
                     <Camera size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Take Photo (Native)
                   </button>
                   <button
                     type="button"
                     onClick={triggerFileUpload}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      backgroundColor: '#FFFFFF',
-                      color: '#B91C1C',
-                      border: '1px solid #FCA5A5',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ height: '30px' }}
                   >
                     <Upload size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Upload File
                   </button>

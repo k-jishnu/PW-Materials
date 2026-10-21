@@ -112,7 +112,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>Materials</h2>
+            <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>Materials</h2>
             {materials.length > 0 && (
               <span className="badge badge-warning">
                 {materials.length} {materials.length === 1 ? 'record' : 'records'}
@@ -159,7 +159,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '10px',
-          background: 'var(--bg-surface)',
+          background: 'var(--bg-card)',
           border: '2px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
           boxShadow: 'var(--shadow-hard-xs)',
@@ -174,7 +174,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            background: 'var(--bg-surface-subtle)',
+            background: 'var(--bg-surface)',
             border: '2px solid var(--color-border)',
             borderRadius: 'var(--radius-sm)',
             padding: '0 10px',
@@ -231,7 +231,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
             {/* View Mode Toggle (Table / Card) */}
             <div style={{
               display: 'flex',
-              background: 'var(--bg-surface-subtle)',
+              background: 'var(--bg-surface)',
               padding: '3px',
               borderRadius: 'var(--radius-sm)',
               border: '2px solid var(--color-border)',
@@ -244,7 +244,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                   width: '30px',
                   height: '30px',
                   borderRadius: '4px',
-                  background: viewMode === 'table' ? 'var(--color-yellow)' : 'transparent',
+                  background: viewMode === 'table' ? 'var(--color-primary-selected)' : 'transparent',
                   color: '#202020',
                   border: viewMode === 'table' ? '1.5px solid var(--color-border)' : '1.5px solid transparent',
                   cursor: 'pointer',
@@ -264,7 +264,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                   width: '30px',
                   height: '30px',
                   borderRadius: '4px',
-                  background: viewMode === 'card' ? 'var(--color-yellow)' : 'transparent',
+                  background: viewMode === 'card' ? 'var(--color-primary-selected)' : 'transparent',
                   color: '#202020',
                   border: viewMode === 'card' ? '1.5px solid var(--color-border)' : '1.5px solid transparent',
                   cursor: 'pointer',
@@ -282,13 +282,13 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
         </div>
       )}
 
-      {/* Empty State: Compact, without redundant buttons */}
+      {/* Empty State: Compact Light Aqua card with light-yellow icon accent */}
       {materials.length === 0 && (
         <div style={{
-          background: 'var(--bg-surface)',
+          background: 'var(--bg-card)',
           borderRadius: 'var(--radius-lg)',
           border: '2.5px solid var(--color-border)',
-          padding: '40px 20px',
+          padding: '36px 20px',
           textAlign: 'center',
           display: 'flex',
           flexDirection: 'column',
@@ -300,7 +300,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
             width: '48px',
             height: '48px',
             borderRadius: 'var(--radius-md)',
-            background: 'var(--color-yellow)',
+            background: 'var(--color-logo-bg)',
             border: '2px solid var(--color-border)',
             boxShadow: 'var(--shadow-hard-xs)',
             display: 'flex',
@@ -365,6 +365,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
             width: '100%',
             maxWidth: '100%',
             minWidth: 0,
+            overflow: 'hidden',
           }}
         >
           {sortedMaterials.length === 0 ? (
@@ -382,7 +383,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
               <thead>
-                <tr style={{ background: 'var(--bg-surface-subtle)', borderBottom: '2px solid var(--color-border)', fontSize: '13px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
+                <tr style={{ background: 'var(--color-logo-bg)', borderBottom: '2px solid var(--color-border)', fontSize: '13px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
                   <th style={{ padding: '12px 14px', fontWeight: 700 }}>SKU</th>
                   <th
                     onClick={() => toggleSort('item')}
@@ -429,10 +430,11 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                       style={{
                         borderBottom: '1.5px solid var(--color-border)',
                         fontSize: '13px',
+                        backgroundColor: '#FFFFFF',
                         transition: 'background-color 0.1s ease',
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-surface-subtle)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-card)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
                     >
                       <td className="mono" style={{ padding: '12px 14px', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 600 }}>
                         {mat.sku}
@@ -489,7 +491,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                             type="button"
                             onClick={() => onDelete(mat.id)}
                             className="btn-icon"
-                            style={{ width: '30px', height: '30px', color: 'var(--color-coral)' }}
+                            style={{ width: '30px', height: '30px', color: '#202020' }}
                             title="Delete item"
                             aria-label="Delete item"
                           >

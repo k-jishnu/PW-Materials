@@ -1,37 +1,46 @@
 /* src/styles/tokens.css */
-/* Professional Neo-Brutalism Design Tokens */
+/* PW Materials — Ice Aqua Neo-Brutalist Design Tokens */
 :root {
-  /* Core Palette */
-  --bg-page: #FFF4E8;              /* Warm cream page background */
-  --bg-surface: #FFFFFF;           /* Main card & table surface */
-  --bg-surface-subtle: #F4EBDD;    /* Muted cream surface */
-  --bg-surface-hover: #FAEDE0;
+  /* Global Page & Surface Colors */
+  --bg-page: #FFF4E8;               /* Light yellow / warm cream page background */
+  --bg-card: #EAF8FA;               /* Primary card background / Light Aqua */
+  --bg-surface: #FFFFFF;            /* White surface */
+  --bg-surface-subtle: #EAF8FA;     /* Light Aqua subtle surface */
+  --bg-surface-hover: #DDF4F7;      /* Hover state on aqua */
 
-  /* Primary Text & Outlines */
-  --color-border: #202020;         /* Crisp black outline */
-  --text-primary: #202020;         /* Bold black text */
-  --text-secondary: #5F5B55;       /* Muted brown/gray secondary text */
-  --text-muted: #8E877F;
+  /* Text & Outlines */
+  --color-border: #202020;          /* Crisp black outline */
+  --text-primary: #202020;          /* Bold black text */
+  --text-secondary: #555B61;        /* Secondary text */
+  --text-muted: #737A82;
 
-  /* Neo-Brutalist Accent Colors */
-  --color-coral: #FF6B6B;          /* Primary action color */
-  --color-coral-hover: #FA5252;
-  --color-teal: #43C9B8;           /* Success / positive actions */
-  --color-teal-hover: #32B8A7;
-  --color-yellow: #FFE66D;         /* Highlights & selected options */
-  --color-yellow-hover: #FAD948;
-  --color-lavender: #B79CED;       /* Supporting accent */
-  --color-peach: #FFAB78;          /* Supporting accent */
+  /* Primary Action Colors (Purple) */
+  --color-primary: #C9A3F5;         /* Purple primary button */
+  --color-primary-hover: #B98AEF;   /* Purple hover */
+  --color-primary-surface: #E9DCFA; /* Light purple surface */
+  --color-primary-selected: #D8C2F5;/* Selected purple state */
+  --color-primary-text: #202020;    /* Bold black text */
 
-  /* Semantic Aliases */
-  --color-primary: #FF6B6B;        /* Primary action is Coral */
-  --color-primary-hover: #FA5252;
-  --color-primary-active: #E03131;
-  --color-primary-text: #202020;   /* Black text on Coral for Neo-Brutalism */
-  
-  --color-success: #43C9B8;
-  --color-warning: #FFE66D;
-  --color-error: #FF6B6B;
+  /* Brand & Highlight Colors (Yellow) */
+  --color-logo-bg: #FFF0BC;         /* Logo background / Light Yellow */
+  --color-yellow: #FFF0BC;          /* Light Yellow */
+  --color-butter-yellow: #FFE9A3;   /* Butter Yellow */
+  --color-pale-yellow: #FFF5D6;     /* Pale Yellow */
+  --color-yellow-hover: #FFE9A3;
+
+  /* Supporting & Status Colors */
+  --color-soft-teal: #B8E6E8;       /* Soft teal */
+  --color-mint: #DDF3E8;            /* Mint */
+  --color-success: #BFE8D0;         /* Success pastel green */
+  --color-warning: #FFE9A3;         /* Warning pastel yellow */
+  --color-error: #FFD3D3;           /* Error soft pastel red/pink */
+  --color-lavender: #E9DCFA;        /* Lavender surface */
+
+  /* Semantic Aliases for backwards compatibility */
+  --color-coral: #C9A3F5;           /* Remapped to purple */
+  --color-coral-hover: #B98AEF;
+  --color-teal: #BFE8D0;            /* Remapped to pastel mint/success */
+  --color-teal-hover: #AEE0C2;
 
   --border-color: #202020;
   --border-color-hover: #000000;
@@ -46,7 +55,7 @@
   --shadow-hard-xs: 2px 2px 0 #202020;
   --shadow-hard-sm: 3px 3px 0 #202020;
   --shadow-hard: 4px 4px 0 #202020;
-  --shadow-hard-lg: 6px 6px 0 #202020;
+  --shadow-hard-lg: 5px 5px 0 #202020;
   --shadow-hard-pressed: 1px 1px 0 #202020;
 
   /* Aliases for general shadow tokens */
@@ -55,7 +64,7 @@
   --shadow-md: var(--shadow-hard);
   --shadow-lg: var(--shadow-hard-lg);
 
-  /* Spacing Scale */
+  /* Spacing Scale (4px and 8px increments) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -67,9 +76,9 @@
 
   /* Border Radii */
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-md: 8px;    /* buttons and inputs: 7-10px */
+  --radius-lg: 12px;   /* standard cards: 10-14px */
+  --radius-xl: 14px;   /* large panels: 12-16px */
   --radius-pill: 9999px;
 
   /* Controls */

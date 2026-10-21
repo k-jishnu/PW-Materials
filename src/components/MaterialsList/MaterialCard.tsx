@@ -54,7 +54,7 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
         borderRadius: 'var(--radius-lg)',
         border: '2.5px solid var(--color-border)',
         padding: '16px',
-        background: 'var(--bg-surface)',
+        background: 'var(--bg-card)',
         boxShadow: 'var(--shadow-hard)',
       }}
     >
@@ -330,7 +330,7 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
                   }
                 }}
                 className="btn-icon"
-                style={{ width: '36px', height: '36px', color: 'var(--color-coral)' }}
+                style={{ width: '36px', height: '36px', color: '#202020' }}
                 title="Delete item"
                 aria-label="Delete item"
               >

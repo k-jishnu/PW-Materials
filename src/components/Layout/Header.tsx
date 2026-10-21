@@ -31,13 +31,13 @@ export const Header: React.FC<HeaderProps> = ({
         width: '100%',
         gap: '16px',
       }}>
-        {/* Brand / Logo */}
+        {/* Brand / Logo: Light Yellow #FFF0BC background, bold black border, hard offset shadow */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
-            width: '34px',
-            height: '34px',
+            width: '36px',
+            height: '36px',
             borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--color-yellow)',
+            backgroundColor: 'var(--color-logo-bg)',
             border: '2.5px solid var(--color-border)',
             boxShadow: 'var(--shadow-hard-xs)',
             display: 'flex',
@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
           style={{
             alignItems: 'center',
             gap: '6px',
-            background: 'var(--bg-surface-subtle)',
+            background: 'var(--bg-surface)',
             padding: '4px',
             borderRadius: 'var(--radius-md)',
             border: '2px solid var(--color-border)',
@@ -85,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
               fontFamily: 'var(--font-serif)',
               fontWeight: 700,
               color: '#202020',
-              backgroundColor: activeTab === 'capture' ? 'var(--color-yellow)' : 'transparent',
+              backgroundColor: activeTab === 'capture' ? 'var(--color-primary-selected)' : 'transparent',
               border: activeTab === 'capture' ? '2px solid var(--color-border)' : '2px solid transparent',
               cursor: 'pointer',
               boxShadow: activeTab === 'capture' ? 'var(--shadow-hard-xs)' : 'none',
@@ -109,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
               fontFamily: 'var(--font-serif)',
               fontWeight: 700,
               color: '#202020',
-              backgroundColor: activeTab === 'materials' ? 'var(--color-yellow)' : 'transparent',
+              backgroundColor: activeTab === 'materials' ? 'var(--color-primary-selected)' : 'transparent',
               border: activeTab === 'materials' ? '2px solid var(--color-border)' : '2px solid transparent',
               cursor: 'pointer',
               boxShadow: activeTab === 'materials' ? 'var(--shadow-hard-xs)' : 'none',
@@ -122,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
               <span style={{
                 fontSize: '11px',
                 fontWeight: 900,
-                backgroundColor: 'var(--color-coral)',
+                backgroundColor: 'var(--color-butter-yellow)',
                 color: '#202020',
                 padding: '1px 6px',
                 borderRadius: 'var(--radius-pill)',
@@ -147,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
               fontFamily: 'var(--font-serif)',
               fontWeight: 700,
               color: '#202020',
-              backgroundColor: activeTab === 'download' ? 'var(--color-yellow)' : 'transparent',
+              backgroundColor: activeTab === 'download' ? 'var(--color-primary-selected)' : 'transparent',
               border: activeTab === 'download' ? '2px solid var(--color-border)' : '2px solid transparent',
               cursor: 'pointer',
               boxShadow: activeTab === 'download' ? 'var(--shadow-hard-xs)' : 'none',
@@ -174,7 +174,7 @@ export const Header: React.FC<HeaderProps> = ({
               fontWeight: 700,
               fontFamily: 'var(--font-serif)',
               color: '#202020',
-              backgroundColor: 'var(--bg-surface-subtle)',
+              backgroundColor: 'var(--bg-card)',
               border: '2px solid var(--color-border)',
               boxShadow: 'var(--shadow-hard-xs)',
             }}
@@ -182,7 +182,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {supabaseConfig.isConnected ? (
               <>
-                <Cloud size={13} color="var(--color-teal)" strokeWidth={3} />
+                <Cloud size={13} color="var(--color-success)" strokeWidth={3} />
                 <span>Supabase</span>
               </>
             ) : (
@@ -218,4 +218,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-

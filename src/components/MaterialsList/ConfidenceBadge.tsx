@@ -18,34 +18,30 @@ export const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({
 }) => {
   const configs: Record<
     ConfidenceLevel,
-    { label: string; bg: string; text: string; border: string; icon: React.ReactNode }
+    { label: string; bg: string; text: string; icon: React.ReactNode }
   > = {
     high: {
       label: 'Likely Accurate',
-      bg: '#DCFCE7',
-      text: '#15803D',
-      border: '#86EFAC',
-      icon: <Check size={12} strokeWidth={3} />,
+      bg: 'var(--color-success)',
+      text: '#202020',
+      icon: <Check size={12} strokeWidth={2.5} />,
     },
     medium: {
       label: 'Review Recommended',
-      bg: '#FEF9C3',
-      text: '#854D0E',
-      border: '#FDE047',
+      bg: 'var(--color-butter-yellow)',
+      text: '#202020',
       icon: <AlertTriangle size={12} strokeWidth={2.5} />,
     },
     low: {
       label: 'Verify Before Saving',
-      bg: '#FEE2E2',
-      text: '#991B1B',
-      border: '#FCA5A5',
+      bg: 'var(--color-error)',
+      text: '#202020',
       icon: <XCircle size={12} strokeWidth={2.5} />,
     },
     unknown: {
       label: 'Manual Entry Needed',
-      bg: '#F1F5F9',
-      text: '#475569',
-      border: '#CBD5E1',
+      bg: 'var(--bg-card)',
+      text: '#202020',
       icon: <HelpCircle size={12} strokeWidth={2.5} />,
     },
   };
@@ -61,12 +57,14 @@ export const ConfidenceBadge: React.FC<ConfidenceBadgeProps> = ({
         alignItems: 'center',
         gap: '4px',
         padding: showIconOnly ? '3px 6px' : '2px 8px',
-        borderRadius: '9999px',
+        borderRadius: 'var(--radius-pill)',
         fontSize: '11px',
-        fontWeight: 600,
+        fontWeight: 700,
+        fontFamily: 'var(--font-serif)',
         backgroundColor: badge.bg,
         color: badge.text,
-        border: `1px solid ${badge.border}`,
+        border: '1.5px solid var(--color-border)',
+        boxShadow: '1.5px 1.5px 0 var(--color-border)',
         whiteSpace: 'nowrap',
         userSelect: 'none',
       }}

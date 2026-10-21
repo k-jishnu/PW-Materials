@@ -50,7 +50,7 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
         borderBottom: '2px solid var(--color-border)',
       }}>
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
+          <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
             Export statement
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '3px' }}>
@@ -58,7 +58,7 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
           </p>
         </div>
 
-        <div className="badge badge-warning">
+        <div className="badge badge-warning" style={{ backgroundColor: 'var(--color-butter-yellow)', color: '#202020' }}>
           {filteredCount} of {purchases.length} records selected
         </div>
       </div>
@@ -66,7 +66,7 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* A. Record Selection Status */}
         <div style={{
-          background: 'var(--bg-surface-subtle)',
+          background: 'var(--bg-surface)',
           border: '2px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
           boxShadow: 'var(--shadow-hard-xs)',
@@ -79,12 +79,12 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
             </p>
           ) : filteredCount === 0 && !isDateRangeInvalid ? (
             <p style={{ color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-              <AlertCircle size={16} color="var(--color-coral)" />
+              <AlertCircle size={16} color="var(--color-error)" />
               <span>No records match the selected date range ({startDate} to {endDate}). Try widening your date range.</span>
             </p>
           ) : isDateRangeInvalid ? (
             <p style={{ color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-              <AlertCircle size={16} color="var(--color-coral)" />
+              <AlertCircle size={16} color="var(--color-error)" />
               <span>Start date cannot be after end date. Please adjust the date fields.</span>
             </p>
           ) : (
@@ -111,7 +111,7 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
             <span>Date range</span>
           </label>
 
-          {/* Practical Presets Segmented Control */}
+          {/* Practical Presets Segmented Control: Purple for selected preset, White for unselected */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
@@ -130,7 +130,7 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
                     padding: '8px 4px',
                     borderRadius: 'var(--radius-sm)',
                     border: '2px solid var(--color-border)',
-                    background: isActive ? 'var(--color-yellow)' : 'var(--bg-surface)',
+                    background: isActive ? 'var(--color-primary-selected)' : 'var(--bg-surface)',
                     color: '#202020',
                     boxShadow: isActive ? 'var(--shadow-hard-xs)' : 'none',
                     fontSize: '12px',
@@ -172,7 +172,7 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
                   minWidth: 0,
                   boxSizing: 'border-box',
                   border: '2px solid var(--color-border)',
-                  borderColor: isDateRangeInvalid ? 'var(--color-coral)' : undefined,
+                  borderColor: isDateRangeInvalid ? 'var(--color-error)' : 'var(--color-border)',
                 }}
               />
             </div>
@@ -196,14 +196,14 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
                   minWidth: 0,
                   boxSizing: 'border-box',
                   border: '2px solid var(--color-border)',
-                  borderColor: isDateRangeInvalid ? 'var(--color-coral)' : undefined,
+                  borderColor: isDateRangeInvalid ? 'var(--color-error)' : 'var(--color-border)',
                 }}
               />
             </div>
           </div>
         </div>
 
-        {/* C. Export Format Selection */}
+        {/* C. Export Format Selection: Purple for selected, White for unselected */}
         <div>
           <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', display: 'block', marginBottom: '8px' }}>
             Export format
@@ -225,7 +225,7 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
                     height: '42px',
                     borderRadius: 'var(--radius-md)',
                     border: '2px solid var(--color-border)',
-                    background: isSelected ? 'var(--color-yellow)' : 'var(--bg-surface)',
+                    background: isSelected ? 'var(--color-primary-selected)' : 'var(--bg-surface)',
                     color: '#202020',
                     boxShadow: isSelected ? 'var(--shadow-hard-xs)' : 'none',
                     fontSize: '13px',
@@ -251,7 +251,7 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
           </div>
         </div>
 
-        {/* Primary Action Button */}
+        {/* D. Download Action Button */}
         <div style={{ paddingTop: '6px' }}>
           <button
             type="button"
@@ -288,4 +288,3 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ purchases }) =
     </section>
   );
 };
-

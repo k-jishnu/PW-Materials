@@ -25,7 +25,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         className={`bottom-nav-item ${activeTab === 'capture' ? 'active' : ''}`}
         aria-label="Capture"
         style={{
-          background: activeTab === 'capture' ? 'var(--color-yellow)' : 'transparent',
+          background: activeTab === 'capture' ? 'var(--color-primary-selected)' : 'transparent',
           border: activeTab === 'capture' ? '2px solid var(--color-border)' : '2px solid transparent',
           borderRadius: 'var(--radius-md)',
           boxShadow: activeTab === 'capture' ? 'var(--shadow-hard-xs)' : 'none',
@@ -43,7 +43,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         aria-label="Materials"
         style={{
           position: 'relative',
-          background: activeTab === 'materials' ? 'var(--color-yellow)' : 'transparent',
+          background: activeTab === 'materials' ? 'var(--color-primary-selected)' : 'transparent',
           border: activeTab === 'materials' ? '2px solid var(--color-border)' : '2px solid transparent',
           borderRadius: 'var(--radius-md)',
           boxShadow: activeTab === 'materials' ? 'var(--shadow-hard-xs)' : 'none',
@@ -57,7 +57,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             position: 'absolute',
             top: '2px',
             right: '8px',
-            background: 'var(--color-coral)',
+            background: 'var(--color-butter-yellow)',
             color: '#202020',
             borderRadius: 'var(--radius-pill)',
             border: '1.5px solid var(--color-border)',
@@ -79,7 +79,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         className={`bottom-nav-item ${activeTab === 'download' ? 'active' : ''}`}
         aria-label="Export"
         style={{
-          background: activeTab === 'download' ? 'var(--color-yellow)' : 'transparent',
+          background: activeTab === 'download' ? 'var(--color-primary-selected)' : 'transparent',
           border: activeTab === 'download' ? '2px solid var(--color-border)' : '2px solid transparent',
           borderRadius: 'var(--radius-md)',
           boxShadow: activeTab === 'download' ? 'var(--shadow-hard-xs)' : 'none',
@@ -103,4 +103,3 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     </nav>
   );
 };
-
