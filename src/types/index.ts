@@ -9,7 +9,19 @@ export interface ConfidenceField<T> {
   source: 'ai' | 'manual';
 }
 
+export interface ExtractedLineItemData {
+  item_name: string;
+  description?: string | null;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  tax_amount?: number | null;
+  line_total: number;
+  confidence_score: number;
+}
+
 export interface MaterialRecognitionResult {
+  documentType?: 'invoice' | 'receipt' | 'material_photo' | 'unknown';
   item: {
     name: string;
     confidence: number; // 0 to 1
@@ -39,7 +51,13 @@ export interface MaterialRecognitionResult {
   };
   invoiceNumber?: string;
   invoiceDate?: string;
+  dueDate?: string;
+  subtotal?: number;
+  taxAmount?: number;
+  totalAmount?: number;
+  notes?: string;
   rawText: string;
+  allLineItems?: ExtractedLineItemData[];
 }
 
 export interface Material {
@@ -60,6 +78,8 @@ export interface Material {
     confidenceScore?: number;
     source: 'ai' | 'manual';
   };
+  invoiceNumber?: string;
+  invoiceDate?: string;
   photoUrl?: string; // Preview / thumbnail
   createdAt: string;
   updatedAt: string;
@@ -86,6 +106,57 @@ export interface PurchaseRecord {
   aiRecognized: boolean;
   confidenceAverage: number;
   createdAt: string;
+}
+
+// Normalized Database Entities
+export interface InvoiceEntity {
+  id: string;
+  owner_id?: string | null;
+  supplier_name?: string | null;
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  due_date?: string | null;
+  currency: string;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  notes?: string | null;
+  storage_path?: string | null;
+  original_filename?: string | null;
+  extraction_status: 'pending' | 'extracted' | 'confirmed' | 'failed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceItemEntity {
+  id: string;
+  invoice_id: string;
+  material_id?: string | null;
+  item_name: string;
+  description?: string | null;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  tax_amount?: number | null;
+  line_total: number;
+  confidence_score?: number | null;
+  review_status: 'draft' | 'confirmed' | 'rejected';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CatalogMaterialEntity {
+  id: string;
+  owner_id?: string | null;
+  sku: string;
+  name: string;
+  normalized_name?: string | null;
+  description?: string | null;
+  default_unit?: string | null;
+  standard_price: number;
+  category?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface GatewayConfig {

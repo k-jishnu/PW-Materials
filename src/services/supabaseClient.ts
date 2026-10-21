@@ -1,7 +1,6 @@
 // src/services/supabaseClient.ts
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { PurchaseRecord, Material, SupabaseConfig } from '@/types';
-import { INITIAL_PURCHASE_HISTORY } from './sampleData';
 
 const SUPABASE_STORAGE_KEY = 'pw_materials_supabase_config';
 const LOCAL_PURCHASES_KEY = 'pw_materials_local_purchases';
@@ -37,15 +36,32 @@ class SupabaseService {
   }
 
   private loadConfig(): SupabaseConfig {
+    // 1. Check environment variables first (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)
+    const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
+    const envKey =
+      (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ||
+      (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      '';
+
     try {
       const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
       if (stored) {
-        return { ...DEFAULT_CONFIG, ...JSON.parse(stored) };
+        const parsed = JSON.parse(stored);
+        return {
+          url: parsed.url || envUrl,
+          anonKey: parsed.anonKey || envKey,
+          isConnected: false,
+        };
       }
     } catch {
       // Ignore
     }
-    return DEFAULT_CONFIG;
+
+    return {
+      url: envUrl,
+      anonKey: envKey,
+      isConnected: false,
+    };
   }
 
   private initClient(): void {
@@ -72,6 +88,13 @@ class SupabaseService {
       };
     }
     try {
+      // First check invoices table
+      const { error: invErr } = await this.client.from('invoices').select('id').limit(1);
+      if (!invErr || invErr.code === 'PGRST116') {
+        return { success: true, message: 'Connected successfully to Supabase (invoices schema active)!' };
+      }
+
+      // Check purchases fallback
       const { error } = await this.client.from('purchases').select('id').limit(1);
       if (error && error.code !== 'PGRST116') {
         return { success: false, message: error.message };
@@ -82,9 +105,122 @@ class SupabaseService {
     }
   }
 
-  // Purchases operations
+  /**
+   * Uploads an invoice document/image to the Supabase Storage bucket 'invoices'
+   */
+  public async uploadInvoiceImage(base64Data: string, filename?: string): Promise<string | null> {
+    if (!this.client || !base64Data || !base64Data.startsWith('data:')) return null;
+
+    try {
+      const mimeMatch = base64Data.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const cleanBase64 = base64Data.replace(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/, '');
+
+      const byteCharacters = atob(cleanBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+
+      const ext = mimeType.includes('pdf') ? 'pdf' : mimeType.includes('png') ? 'png' : 'jpg';
+      const safeFilename = filename
+        ? filename.replace(/[^a-zA-Z0-9._-]/g, '_')
+        : `invoice_${Date.now()}.${ext}`;
+
+      const storagePath = `uploads/${Date.now()}_${safeFilename}`;
+
+      const { data, error } = await this.client.storage
+        .from('invoices')
+        .upload(storagePath, blob, {
+          contentType: mimeType,
+          upsert: true,
+        });
+
+      if (error) {
+        console.warn('[Supabase Storage] Notice:', error.message);
+        return null;
+      }
+
+      return data.path;
+    } catch (err: any) {
+      console.warn('[Supabase Storage] Upload error:', err.message);
+      return null;
+    }
+  }
+
+  /**
+   * Loads purchases from Supabase invoices/items or fallback table
+   */
   public async getPurchases(): Promise<PurchaseRecord[]> {
     if (this.client) {
+      // 1. Try querying normalized invoices with joined invoice_items
+      try {
+        const { data: invoicesData, error: invErr } = await this.client
+          .from('invoices')
+          .select('*, invoice_items(*)')
+          .order('invoice_date', { ascending: false });
+
+        if (!invErr && invoicesData && invoicesData.length > 0) {
+          const records: PurchaseRecord[] = [];
+          for (const inv of invoicesData) {
+            const items = inv.invoice_items || [];
+            if (items.length > 0) {
+              for (const it of items) {
+                const sub = (it.unit_price || 0) * (it.quantity || 1);
+                const gst = it.tax_amount || 0;
+                records.push({
+                  id: it.id || `pur-${Date.now()}`,
+                  date: inv.invoice_date || new Date().toISOString().split('T')[0],
+                  item: it.item_name,
+                  sku: `INV-${(inv.invoice_number || 'DOC').replace(/[^a-zA-Z0-9]/g, '')}`,
+                  vendor: inv.supplier_name || 'Vendor',
+                  company: 'PW Materials',
+                  quantity: Number(it.quantity) || 1,
+                  unit: it.unit || 'Nos',
+                  unitPrice: Number(it.unit_price) || 0,
+                  totalPrice: sub,
+                  gstRate: sub > 0 && gst > 0 ? Math.round((gst / sub) * 100) : 18,
+                  gstAmount: gst,
+                  netAmount: sub + gst,
+                  isGSTInvoice: gst > 0,
+                  photoUrl: inv.storage_path || undefined,
+                  aiRecognized: true,
+                  confidenceAverage: Number(it.confidence_score) || 0.95,
+                  createdAt: inv.created_at || new Date().toISOString(),
+                });
+              }
+            } else {
+              records.push({
+                id: inv.id,
+                date: inv.invoice_date || new Date().toISOString().split('T')[0],
+                item: inv.notes || 'Purchased Materials',
+                sku: `INV-${(inv.invoice_number || 'DOC').slice(-6)}`,
+                vendor: inv.supplier_name || 'Vendor',
+                company: 'PW Materials',
+                quantity: 1,
+                unit: 'Nos',
+                unitPrice: Number(inv.subtotal) || Number(inv.total_amount) || 0,
+                totalPrice: Number(inv.subtotal) || Number(inv.total_amount) || 0,
+                gstRate: 18,
+                gstAmount: Number(inv.tax_amount) || 0,
+                netAmount: Number(inv.total_amount) || 0,
+                isGSTInvoice: Number(inv.tax_amount) > 0,
+                photoUrl: inv.storage_path || undefined,
+                aiRecognized: true,
+                confidenceAverage: 0.95,
+                createdAt: inv.created_at || new Date().toISOString(),
+              });
+            }
+          }
+          if (records.length > 0) return records;
+        }
+      } catch (e) {
+        console.warn('Invoices table query notice, trying purchases table:', e);
+      }
+
+      // 2. Fallback to purchases table
       try {
         const { data, error } = await this.client
           .from('purchases')
@@ -99,12 +235,11 @@ class SupabaseService {
       }
     }
 
-    // Local storage fallback
+    // 3. Local storage fallback for offline resilience
     try {
       const local = localStorage.getItem(LOCAL_PURCHASES_KEY);
       if (local) {
         const parsed: PurchaseRecord[] = JSON.parse(local);
-        // Filter out any legacy dummy records (e.g. pur-101 .. pur-105)
         const clean = parsed.filter((r) => !r.id.startsWith('pur-10'));
         return clean;
       }
@@ -115,21 +250,81 @@ class SupabaseService {
     return [];
   }
 
-  public async addPurchase(record: PurchaseRecord): Promise<void> {
-    // Save to local storage first for resilience
+  /**
+   * Adds a purchase record to Supabase and local storage
+   */
+  public async addPurchase(record: PurchaseRecord, materialSource?: Material): Promise<void> {
+    // 1. Save to local storage first for resilience
     const current = await this.getPurchases();
     const updated = [record, ...current.filter((r) => r.id !== record.id)];
     this.savePurchasesLocally(updated);
 
-    // Save to Supabase if configured
+    // 2. Save to Supabase if configured
     if (this.client) {
       try {
-        const { error } = await this.client.from('purchases').insert([record]);
-        if (error) {
-          console.warn('Supabase insert warning:', error.message);
+        let storagePath: string | null = null;
+        if (materialSource?.photoUrl && materialSource.photoUrl.startsWith('data:')) {
+          storagePath = await this.uploadInvoiceImage(materialSource.photoUrl);
         }
-      } catch (e) {
-        console.error('Supabase insert failed:', e);
+
+        // A. Insert into normalized invoices & invoice_items
+        const invoiceUUID = crypto.randomUUID();
+        const { error: invError } = await this.client.from('invoices').insert([
+          {
+            id: invoiceUUID,
+            supplier_name: record.vendor,
+            invoice_number: materialSource?.invoiceNumber || `INV-${record.id.slice(-6)}`,
+            invoice_date: record.date,
+            currency: 'INR',
+            subtotal: record.totalPrice,
+            tax_amount: record.gstAmount,
+            total_amount: record.netAmount,
+            storage_path: storagePath || record.photoUrl || null,
+            notes: materialSource?.notes || null,
+            extraction_status: 'confirmed',
+          },
+        ]);
+
+        if (!invError) {
+          // B. Insert into invoice_items
+          await this.client.from('invoice_items').insert([
+            {
+              invoice_id: invoiceUUID,
+              item_name: record.item,
+              description: materialSource?.notes || null,
+              quantity: record.quantity,
+              unit: record.unit,
+              unit_price: record.unitPrice,
+              tax_amount: record.gstAmount,
+              line_total: record.netAmount,
+              confidence_score: record.confidenceAverage,
+              review_status: 'confirmed',
+            },
+          ]);
+
+          // C. Upsert into materials catalog
+          await this.client.from('materials').upsert(
+            [
+              {
+                sku: record.sku,
+                name: record.item,
+                normalized_name: record.item.toLowerCase().trim(),
+                default_unit: record.unit,
+                standard_price: record.unitPrice,
+              },
+            ],
+            { onConflict: 'sku' }
+          );
+        }
+      } catch (err: any) {
+        console.warn('Normalized table write notice, ensuring purchases table sync:', err.message);
+      }
+
+      // D. Sync to purchases table for backward compatibility
+      try {
+        await this.client.from('purchases').insert([record]);
+      } catch (e: any) {
+        console.warn('Purchases table insert notice:', e.message);
       }
     }
   }
@@ -141,6 +336,7 @@ class SupabaseService {
 
     if (this.client) {
       try {
+        await this.client.from('invoice_items').delete().eq('id', id);
         await this.client.from('purchases').delete().eq('id', id);
       } catch (e) {
         console.error('Supabase delete error:', e);
@@ -176,58 +372,110 @@ class SupabaseService {
   }
 
   public getSupabaseSQLSchema(): string {
-    return `-- PW Materials Supabase SQL Schema
--- Run this in your Supabase SQL Editor:
+    return `-- ==============================================================================
+-- PW Materials: Complete Supabase PostgreSQL Schema & Security Migration
+-- Version: 20261021_init_materials_schema.sql
+-- Description: Normalized schema for invoices, materials catalog, invoice items,
+--              Row-Level Security (RLS) policies, indexes, and Storage bucket.
+-- ==============================================================================
 
--- 1. Purchases Table (Bank-Statement style records)
-CREATE TABLE IF NOT EXISTS purchases (
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- 1. Invoices Table: Stores invoice-level metadata
+CREATE TABLE IF NOT EXISTS public.invoices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  supplier_name TEXT,
+  invoice_number TEXT,
+  invoice_date DATE DEFAULT CURRENT_DATE,
+  due_date DATE,
+  currency TEXT DEFAULT 'INR' NOT NULL,
+  subtotal NUMERIC(12, 2) DEFAULT 0 CHECK (subtotal >= 0),
+  tax_amount NUMERIC(12, 2) DEFAULT 0 CHECK (tax_amount >= 0),
+  total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
+  notes TEXT,
+  storage_path TEXT,
+  original_filename TEXT,
+  extraction_status TEXT NOT NULL DEFAULT 'confirmed' CHECK (extraction_status IN ('pending', 'extracted', 'confirmed', 'failed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- 2. Materials Table: Normalized Catalog of Materials/Items
+CREATE TABLE IF NOT EXISTS public.materials (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  sku TEXT,
+  name TEXT NOT NULL,
+  normalized_name TEXT,
+  description TEXT,
+  default_unit TEXT DEFAULT 'Nos',
+  standard_price NUMERIC(12, 2) DEFAULT 0 CHECK (standard_price >= 0),
+  category TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- 3. Invoice Items Table: Individual material line items
+CREATE TABLE IF NOT EXISTS public.invoice_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+  material_id UUID REFERENCES public.materials(id) ON DELETE SET NULL,
+  item_name TEXT NOT NULL,
+  description TEXT,
+  quantity NUMERIC(12, 3) NOT NULL DEFAULT 1 CHECK (quantity >= 0),
+  unit TEXT DEFAULT 'Nos',
+  unit_price NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (unit_price >= 0),
+  tax_amount NUMERIC(12, 2) DEFAULT 0 CHECK (tax_amount >= 0),
+  line_total NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (line_total >= 0),
+  confidence_score NUMERIC(4, 3) CHECK (confidence_score >= 0 AND confidence_score <= 1.0),
+  review_status TEXT NOT NULL DEFAULT 'confirmed' CHECK (review_status IN ('draft', 'confirmed', 'rejected')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- 4. Purchases Table (Backward Compatibility)
+CREATE TABLE IF NOT EXISTS public.purchases (
   id TEXT PRIMARY KEY,
   date DATE NOT NULL DEFAULT CURRENT_DATE,
   item TEXT NOT NULL,
   sku TEXT,
   vendor TEXT NOT NULL,
   company TEXT,
-  quantity NUMERIC NOT NULL DEFAULT 1,
+  quantity NUMERIC NOT NULL DEFAULT 1 CHECK (quantity >= 0),
   unit TEXT DEFAULT 'Nos',
-  unit_price NUMERIC NOT NULL DEFAULT 0,
-  total_price NUMERIC NOT NULL DEFAULT 0,
+  unit_price NUMERIC NOT NULL DEFAULT 0 CHECK (unit_price >= 0),
+  total_price NUMERIC NOT NULL DEFAULT 0 CHECK (total_price >= 0),
   gst_rate NUMERIC DEFAULT 18,
   gst_amount NUMERIC DEFAULT 0,
-  net_amount NUMERIC NOT NULL DEFAULT 0,
+  net_amount NUMERIC NOT NULL DEFAULT 0 CHECK (net_amount >= 0),
   is_gst_invoice BOOLEAN DEFAULT true,
   photo_url TEXT,
   ai_recognized BOOLEAN DEFAULT false,
   confidence_average NUMERIC DEFAULT 1.0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
--- 2. Materials Table (Catalog/Inventory)
-CREATE TABLE IF NOT EXISTS materials (
-  id TEXT PRIMARY KEY,
-  sku TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  default_vendor TEXT,
-  category TEXT,
-  unit TEXT DEFAULT 'Nos',
-  standard_price NUMERIC,
-  gst_rate NUMERIC DEFAULT 18,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_invoices_date ON public.invoices(invoice_date DESC);
+CREATE INDEX IF NOT EXISTS idx_invoices_supplier ON public.invoices(supplier_name);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON public.invoice_items(invoice_id);
 
--- 3. Vendors Table
-CREATE TABLE IF NOT EXISTS vendors (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL UNIQUE,
-  gstin TEXT,
-  phone TEXT,
-  email TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Row Level Security
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchases ENABLE ROW LEVEL SECURITY;
 
--- Index for speedy date queries
-CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(date DESC);
-CREATE INDEX IF NOT EXISTS idx_purchases_vendor ON purchases(vendor);
+CREATE POLICY "Allow select invoices" ON public.invoices FOR SELECT USING (true);
+CREATE POLICY "Allow insert invoices" ON public.invoices FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow select items" ON public.invoice_items FOR SELECT USING (true);
+CREATE POLICY "Allow insert items" ON public.invoice_items FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow select materials" ON public.materials FOR SELECT USING (true);
+CREATE POLICY "Allow insert materials" ON public.materials FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow select purchases" ON public.purchases FOR SELECT USING (true);
+CREATE POLICY "Allow insert purchases" ON public.purchases FOR INSERT WITH CHECK (true);
 `;
   }
 }

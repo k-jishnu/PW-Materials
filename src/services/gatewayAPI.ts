@@ -1,11 +1,12 @@
 import { MaterialRecognitionResult, GatewayConfig } from '@/types';
+import { StructuredRecognitionResult } from './aiRecognitionEngine';
 
 const CONFIG_STORAGE_KEY = 'pw_materials_gateway_config';
 
 const DEFAULT_CONFIG: GatewayConfig = {
   baseUrl: 'https://gateway.example.com',
   apiKey: '',
-  model: 'claude-opus-4',
+  model: 'gpt-4o-mini',
   useLiveClaudeGateway: false,
 };
 
@@ -41,58 +42,112 @@ export class GatewayAPI {
     return DEFAULT_CONFIG;
   }
 
-  public getRecognitionPrompt(): string {
-    return `Analyze this bill, invoice, or material detail image and extract the following JSON:
-{
-  "item": {
-    "name": "material name or description",
-    "confidence": 0.95
-  },
-  "vendor": {
-    "name": "supplier or vendor name",
-    "confidence": 0.90
-  },
-  "price": {
-    "amount": 1000,
-    "currency": "INR",
-    "confidence": 0.85
-  },
-  "gst": {
-    "rate": 18,
-    "confidence": 0.90
-  },
-  "company": {
-    "name": "company or organization name",
-    "confidence": 0.80
-  },
-  "quantity": {
-    "value": 10,
-    "unit": "kg",
-    "confidence": 0.85
-  }
-}
-
-IMPORTANT:
-1. Use Indian standard formats (INR currency, GST rates)
-2. Confidence scores are 0-1 (0.9+ = high confidence)
-3. If a field is not visible, set confidence to 0 and value to null
-4. Extract exact values from text (prices, quantities, GST)
-5. Return ONLY valid JSON, no markdown or explanations`;
-  }
-
   public async recognizeMaterial(
     imageBase64: string,
     onProgress?: (progress: number) => void
   ): Promise<MaterialRecognitionResult> {
     onProgress?.(15);
 
-    // If user has enabled live Claude Vision inference gateway
+    // 1. First attempt: call secure server-side OpenAI Vision endpoint (/api/recognize)
+    try {
+      onProgress?.(30);
+      const res = await fetch('/api/recognize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64 }),
+      });
+
+      onProgress?.(70);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.result) {
+          onProgress?.(95);
+          return this.mapStructuredToRecognitionResult(data.result);
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.code === 'MISSING_API_KEY') {
+          console.info(
+            '[AI Vision] OPENAI_API_KEY is not configured on the server. Falling back to simulated heuristic mode for development.'
+          );
+        } else {
+          console.warn('[AI Vision Endpoint Error]:', errData.error || res.statusText);
+        }
+      }
+    } catch (networkErr: any) {
+      console.warn('[AI Vision] Server endpoint unreachable, checking client configuration:', networkErr.message);
+    }
+
+    // 2. Custom live gateway fallback if user configured one
     if (this.config.useLiveClaudeGateway && this.config.apiKey && this.config.baseUrl) {
       return this.callLiveGateway(imageBase64, onProgress);
     }
 
-    // High fidelity offline/simulated AI recognition mode
+    // 3. High-fidelity simulated recognition fallback
     return this.simulateRecognition(imageBase64, onProgress);
+  }
+
+  /**
+   * Maps server-side structured output to client-side MaterialRecognitionResult
+   */
+  private mapStructuredToRecognitionResult(
+    structured: StructuredRecognitionResult
+  ): MaterialRecognitionResult {
+    const firstItem = structured.line_items[0] || {
+      item_name: structured.document_type === 'material_photo' ? 'Identified Material' : 'Material Item',
+      quantity: 1,
+      unit: 'Nos',
+      unit_price: structured.total_amount || 0,
+      tax_amount: structured.tax_amount || 0,
+      line_total: structured.total_amount || 0,
+      confidence_score: 0.92,
+    };
+
+    const hasTax = (firstItem.tax_amount ?? 0) > 0 || (structured.tax_amount ?? 0) > 0;
+    const inferredGSTRate = hasTax && firstItem.unit_price > 0 && firstItem.tax_amount
+      ? Math.round((firstItem.tax_amount / (firstItem.quantity * firstItem.unit_price)) * 100)
+      : hasTax ? 18 : 0;
+
+    return {
+      documentType: structured.document_type,
+      item: {
+        name: firstItem.item_name,
+        confidence: firstItem.confidence_score,
+      },
+      vendor: {
+        name: structured.supplier_name || 'Vendor Pending Review',
+        confidence: structured.supplier_name ? 0.92 : 0.65,
+      },
+      price: {
+        amount: firstItem.unit_price,
+        currency: structured.currency || 'INR',
+        confidence: firstItem.confidence_score,
+      },
+      gst: {
+        rate: inferredGSTRate,
+        isGSTInvoice: hasTax,
+        confidence: 0.9,
+      },
+      company: {
+        name: 'PW Materials',
+        confidence: 0.85,
+      },
+      quantity: {
+        value: firstItem.quantity,
+        unit: firstItem.unit,
+        confidence: firstItem.confidence_score,
+      },
+      invoiceNumber: structured.invoice_number || undefined,
+      invoiceDate: structured.invoice_date || undefined,
+      dueDate: structured.due_date || undefined,
+      subtotal: structured.subtotal || undefined,
+      taxAmount: structured.tax_amount || undefined,
+      totalAmount: structured.total_amount || undefined,
+      notes: structured.notes || undefined,
+      rawText: structured.rawText || JSON.stringify(structured, null, 2),
+      allLineItems: structured.line_items,
+    };
   }
 
   private async callLiveGateway(
@@ -110,7 +165,7 @@ IMPORTANT:
         Authorization: `Bearer ${this.config.apiKey}`,
       },
       body: JSON.stringify({
-        model: this.config.model || 'claude-opus-4',
+        model: this.config.model || 'gpt-4o-mini',
         max_tokens: 1024,
         temperature: 0.2,
         messages: [
@@ -127,7 +182,7 @@ IMPORTANT:
               },
               {
                 type: 'text',
-                text: this.getRecognitionPrompt(),
+                text: 'Extract invoice or material details into JSON.',
               },
             ],
           },
@@ -143,26 +198,22 @@ IMPORTANT:
 
     const data = await response.json();
     onProgress?.(90);
-    return this.parseRecognitionResponse(data);
+    return this.parseLegacyGatewayResponse(data);
   }
 
   private async simulateRecognition(
     imageBase64: string,
     onProgress?: (progress: number) => void
   ): Promise<MaterialRecognitionResult> {
-    // Stage 1: Reading image bytes
-    await new Promise((r) => setTimeout(r, 350));
-    onProgress?.(35);
-
-    // Stage 2: Multi-modal vision analysis
-    await new Promise((r) => setTimeout(r, 450));
-    onProgress?.(70);
-
-    // Stage 3: Field extraction and confidence scoring
     await new Promise((r) => setTimeout(r, 300));
+    onProgress?.(40);
+
+    await new Promise((r) => setTimeout(r, 400));
+    onProgress?.(75);
+
+    await new Promise((r) => setTimeout(r, 250));
     onProgress?.(95);
 
-    // Default intelligent OCR heuristic for user captured photos or uploaded bills
     const randomSeed = imageBase64.length % 4;
     const heuristics = [
       {
@@ -214,6 +265,7 @@ IMPORTANT:
     const chosen = heuristics[randomSeed];
 
     return {
+      documentType: 'invoice',
       item: { name: chosen.item, confidence: chosen.confidence },
       vendor: { name: chosen.vendor, confidence: chosen.confidence - 0.03 },
       price: { amount: chosen.amount, currency: 'INR', confidence: chosen.confidence },
@@ -222,57 +274,28 @@ IMPORTANT:
       quantity: { value: chosen.qty, unit: chosen.unit, confidence: chosen.confidence - 0.02 },
       invoiceNumber: `INV-${Date.now().toString().slice(-5)}`,
       invoiceDate: new Date().toISOString().split('T')[0],
-      rawText: `[AI Vision Output]: Item: ${chosen.item}, Vendor: ${chosen.vendor}, Rate: ₹${chosen.amount}, GST: ${chosen.gstRate}%, Qty: ${chosen.qty} ${chosen.unit}`,
+      rawText: `[Heuristic OCR]: ${chosen.item}, Vendor: ${chosen.vendor}, Price: ₹${chosen.amount}`,
     };
   }
 
-  private parseRecognitionResponse(apiResponse: any): MaterialRecognitionResult {
+  private parseLegacyGatewayResponse(apiResponse: any): MaterialRecognitionResult {
     try {
       const content = apiResponse.content?.[0];
-      if (!content || content.type !== 'text') {
-        throw new Error('Unexpected Claude response format');
-      }
-
-      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON block found in Claude response');
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
+      const text = content?.text || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
 
       return {
-        item: {
-          name: parsed.item?.name || 'Unspecified Material',
-          confidence: Number(parsed.item?.confidence) || 0.8,
-        },
-        vendor: {
-          name: parsed.vendor?.name || 'Local Vendor',
-          confidence: Number(parsed.vendor?.confidence) || 0.8,
-        },
-        price: {
-          amount: Number(parsed.price?.amount) || 0,
-          currency: parsed.price?.currency || 'INR',
-          confidence: Number(parsed.price?.confidence) || 0.8,
-        },
-        gst: {
-          rate: Number(parsed.gst?.rate) || 18,
-          isGSTInvoice: Number(parsed.gst?.rate) > 0,
-          confidence: Number(parsed.gst?.confidence) || 0.8,
-        },
-        company: {
-          name: parsed.company?.name || 'PW Materials',
-          confidence: Number(parsed.company?.confidence) || 0.8,
-        },
-        quantity: {
-          value: Number(parsed.quantity?.value) || 1,
-          unit: parsed.quantity?.unit || 'Nos',
-          confidence: Number(parsed.quantity?.confidence) || 0.8,
-        },
-        rawText: content.text,
+        item: { name: parsed.item?.name || 'Unspecified Material', confidence: 0.85 },
+        vendor: { name: parsed.vendor?.name || 'Local Vendor', confidence: 0.85 },
+        price: { amount: Number(parsed.price?.amount) || 0, currency: 'INR', confidence: 0.85 },
+        gst: { rate: 18, isGSTInvoice: true, confidence: 0.85 },
+        company: { name: 'PW Materials', confidence: 0.85 },
+        quantity: { value: Number(parsed.quantity?.value) || 1, unit: 'Nos', confidence: 0.85 },
+        rawText: text,
       };
-    } catch (err) {
-      console.error('Failed to parse Claude Vision response:', err);
-      throw new Error('Invalid response format from AI inference service');
+    } catch {
+      throw new Error('Invalid response from AI Vision gateway');
     }
   }
 
@@ -289,7 +312,7 @@ IMPORTANT:
   }
 
   public async getModels(): Promise<string[]> {
-    return ['claude-opus-4', 'claude-sonnet-4', 'claude-3-5-sonnet-20241022'];
+    return ['gpt-4o-mini', 'gpt-4o', 'claude-opus-4', 'claude-sonnet-4'];
   }
 }
 

@@ -15,9 +15,75 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
     supabaseService.saveDraftMaterials(draftMaterials);
   }, [draftMaterials]);
 
-  // Autofill material from AI recognition result (as defined in Part 5.1 of PDF spec)
+  // Autofill material from AI recognition result (supports multi-line items from invoices)
   const addMaterialFromRecognition = useCallback(
     (recognition: MaterialRecognitionResult, photoUrl?: string) => {
+      // If multiple line items were detected in the invoice, add each as a reviewable item
+      if (recognition.allLineItems && recognition.allLineItems.length > 1) {
+        const newMaterials: Material[] = recognition.allLineItems.map((lineItem, idx) => {
+          const itemTax = lineItem.tax_amount || 0;
+          const isTaxInvoice = itemTax > 0 || recognition.gst.isGSTInvoice;
+          const inferredRate = lineItem.unit_price > 0 && itemTax > 0
+            ? Math.round((itemTax / (lineItem.quantity * lineItem.unit_price)) * 100)
+            : recognition.gst.rate || 18;
+
+          return {
+            id: `mat-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+            sku: `SWC-${(Date.now() + idx).toString().slice(-6)}`,
+            item: {
+              value: lineItem.item_name || 'Unspecified Item',
+              confidence: scoreToConfidenceLevel(lineItem.confidence_score),
+              confidenceScore: lineItem.confidence_score,
+              source: 'ai',
+            },
+            vendor: {
+              value: recognition.vendor.name || 'Vendor Pending',
+              confidence: scoreToConfidenceLevel(recognition.vendor.confidence),
+              confidenceScore: recognition.vendor.confidence,
+              source: 'ai',
+            },
+            price: {
+              value: lineItem.unit_price || 0,
+              confidence: scoreToConfidenceLevel(lineItem.confidence_score),
+              confidenceScore: lineItem.confidence_score,
+              source: 'ai',
+            },
+            company: {
+              value: recognition.company.name || 'PW Materials',
+              confidence: scoreToConfidenceLevel(recognition.company.confidence),
+              confidenceScore: recognition.company.confidence,
+              source: 'ai',
+            },
+            quantity: {
+              value: {
+                value: lineItem.quantity || 1,
+                unit: lineItem.unit || 'Nos',
+              },
+              confidence: scoreToConfidenceLevel(lineItem.confidence_score),
+              confidenceScore: lineItem.confidence_score,
+              source: 'ai',
+            },
+            gst: {
+              rate: inferredRate,
+              isGSTInvoice: isTaxInvoice,
+              confidence: scoreToConfidenceLevel(lineItem.confidence_score),
+              confidenceScore: lineItem.confidence_score,
+              source: 'ai',
+            },
+            invoiceNumber: recognition.invoiceNumber,
+            invoiceDate: recognition.invoiceDate,
+            photoUrl: photoUrl || '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            status: 'draft',
+            notes: lineItem.description || recognition.notes || undefined,
+          };
+        });
+
+        setDraftMaterials((prev) => [...newMaterials, ...prev]);
+        return newMaterials[0];
+      }
+
       const generatedSKU = `SWC-${Date.now().toString().slice(-6)}`;
       const newMaterial: Material = {
         id: `mat-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -62,10 +128,13 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
           confidenceScore: recognition.gst.confidence,
           source: 'ai',
         },
+        invoiceNumber: recognition.invoiceNumber,
+        invoiceDate: recognition.invoiceDate,
         photoUrl: photoUrl || '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         status: 'draft',
+        notes: recognition.notes || undefined,
       };
 
       setDraftMaterials((prev) => [newMaterial, ...prev]);
@@ -216,7 +285,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
       setDraftMaterials((prev) => prev.filter((m) => m.id !== materialId));
 
       // Save to Supabase and local purchases
-      await supabaseService.addPurchase(purchaseRecord);
+      await supabaseService.addPurchase(purchaseRecord, mat);
       onPurchaseAdded?.(purchaseRecord);
 
       // Trigger celebratory confetti
