@@ -318,7 +318,7 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
                 }}
               >
                 <Check size={14} strokeWidth={2.5} />
-                <span>Saved in Supabase</span>
+                <span>Saved</span>
               </div>
             ) : (
               <button
@@ -330,7 +330,7 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
                   height: '36px',
                   fontSize: '13px',
                 }}
-                title="Save to purchases & Supabase"
+                title="Save to purchases"
               >
                 <Check size={14} strokeWidth={2.5} />
                 <span>Save to purchases</span>

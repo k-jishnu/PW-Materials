@@ -72,7 +72,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
               ? recognition.gst.rate
               : isTaxInvoice
               ? 18
-              : 0;
+              : null;
 
           return {
             id: `mat-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,

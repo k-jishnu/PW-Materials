@@ -256,6 +256,10 @@ export async function executeOpenAIVisionRecognition(
     throw new Error('OPENAI_API_KEY is not configured on the server.');
   }
 
+  if (imageBase64.startsWith('data:application/pdf')) {
+    throw new Error('OpenAI Vision does not support PDF documents directly. Please upload an image format (JPEG, PNG, WebP) or configure GEMINI_API_KEY for native PDF invoice recognition.');
+  }
+
   // Ensure clean data URL format for OpenAI
   let formattedImageUrl = imageBase64;
   if (!formattedImageUrl.startsWith('data:')) {
@@ -360,52 +364,81 @@ export async function executeGeminiVisionRecognition(
     }
   }
 
-  // Model normalization
-  let chosenModel = modelName.trim() || 'gemini-1.5-flash';
-  // Strip any accidental prefix like models/
-  chosenModel = chosenModel.replace(/^models\//, '');
+  // Model candidates with fallback if primary experiences temporary capacity (503) or deprecation (404)
+  let primaryModel = modelName.trim().replace(/^models\//, '') || 'gemini-3.5-flash';
+  const modelCandidates = [primaryModel];
+  if (primaryModel !== 'gemini-3.5-flash') {
+    modelCandidates.push('gemini-3.5-flash');
+  }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent?key=${apiKey.trim()}`;
+  const promptText = mimeType === 'application/pdf'
+    ? `${OPENAI_VISION_SYSTEM_PROMPT}\n\nAnalyze this PDF invoice document and extract all available information into valid JSON matching the schema:`
+    : `${OPENAI_VISION_SYSTEM_PROMPT}\n\nAnalyze this image and return the structured JSON data:`;
 
   const requestBody = {
     contents: [
       {
         parts: [
           {
-            text: `${OPENAI_VISION_SYSTEM_PROMPT}\n\nAnalyze this image and return the structured JSON data:`
+            text: promptText,
           },
           {
             inline_data: {
               mime_type: mimeType,
-              data: pureBase64
-            }
-          }
-        ]
-      }
+              data: pureBase64,
+            },
+          },
+        ],
+      },
     ],
     generationConfig: {
       temperature: 0.1,
-      response_mime_type: 'application/json'
-    }
+      response_mime_type: 'application/json',
+    },
   };
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-  });
+  let response: Response | null = null;
+  let lastErr = '';
 
-  if (!response.ok) {
-    let errBody = '';
+  for (const modelToTry of modelCandidates) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent?key=${apiKey.trim()}`;
     try {
-      const errJson = await response.json();
-      errBody = errJson.error?.message || JSON.stringify(errJson);
-    } catch {
-      errBody = await response.text();
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.ok) {
+        break;
+      }
+
+      let errBody = '';
+      try {
+        const errJson = await response.json();
+        errBody = errJson.error?.message || JSON.stringify(errJson);
+      } catch {
+        errBody = await response.text();
+      }
+      lastErr = `Gemini Vision API error (${response.status}): ${errBody || response.statusText}`;
+
+      // Only fallback on 503 (high demand) or 404 (model not found/deprecated)
+      if (response.status !== 503 && response.status !== 404) {
+        throw new Error(lastErr);
+      }
+    } catch (e: any) {
+      lastErr = e.message || String(e);
+      // If network error or fatal error not related to 503/404, throw
+      if (!lastErr.includes('503') && !lastErr.includes('404')) {
+        throw e;
+      }
     }
-    throw new Error(`Gemini Vision API error (${response.status}): ${errBody || response.statusText}`);
+  }
+
+  if (!response || !response.ok) {
+    throw new Error(lastErr || 'Gemini Vision recognition failed.');
   }
 
   const data = await response.json();

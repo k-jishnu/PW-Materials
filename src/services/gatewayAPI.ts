@@ -140,9 +140,9 @@ export class GatewayAPI {
       rawText: structured.rawText || JSON.stringify(structured, null, 2),
       allLineItems: structured.line_items ? structured.line_items.map((li) => ({
         ...li,
-        quantity: li.quantity ?? 1,
-        unit_price: li.unit_price ?? 0,
-        line_total: li.line_total ?? ((li.quantity ?? 1) * (li.unit_price ?? 0)),
+        quantity: li.quantity !== undefined ? li.quantity : null,
+        unit_price: li.unit_price !== undefined ? li.unit_price : null,
+        line_total: li.line_total !== undefined ? li.line_total : (li.quantity !== null && li.unit_price !== null && li.quantity !== undefined && li.unit_price !== undefined ? li.quantity * li.unit_price : null),
       })) : undefined,
     };
   }

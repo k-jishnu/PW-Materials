@@ -56,6 +56,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
 
     if (!item.trim()) {

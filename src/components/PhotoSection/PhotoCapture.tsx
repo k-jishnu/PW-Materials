@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Camera, Upload, RotateCw, X, Sparkles, AlertCircle, RefreshCw, FileUp } from 'lucide-react';
+import { Camera, Upload, RotateCw, X, Sparkles, AlertCircle, RefreshCw, FileUp, FileText } from 'lucide-react';
 import { useCamera } from '@/hooks/useCamera';
 
 interface PhotoCaptureProps {
@@ -32,6 +32,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
   } = useCamera();
 
   const [preview, setPreview] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Handle take photo button click (with automatic mobile/HTTP fallback)
   const handleTakePhoto = () => {
@@ -63,8 +64,14 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
   const handleUploadedFile = async (base64: string) => {
     stopCamera();
     clearCameraError();
+    setUploadError(null);
     setPreview(base64);
     await onPhotoProcessed(base64);
+  };
+
+  const handleFileError = (err: string) => {
+    setUploadError(err);
+    setPreview(null);
   };
 
   return (
@@ -76,9 +83,9 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,.pdf"
+        accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.pdf,application/pdf"
         style={{ display: 'none' }}
-        onChange={(e) => handleFileChange(e, handleUploadedFile)}
+        onChange={(e) => handleFileChange(e, handleUploadedFile, handleFileError)}
       />
 
       {/* Hidden native camera capture input for mobile devices and fallback */}
@@ -88,7 +95,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
         accept="image/*"
         capture="environment"
         style={{ display: 'none' }}
-        onChange={(e) => handleFileChange(e, handleUploadedFile)}
+        onChange={(e) => handleFileChange(e, handleUploadedFile, handleFileError)}
       />
 
       {/* Header */}
@@ -246,11 +253,45 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
           border: '2.5px solid var(--color-border)',
           boxShadow: 'var(--shadow-hard)',
         }}>
-          <img
-            src={preview}
-            alt="Invoice preview"
-            style={{ width: '100%', maxHeight: '280px', objectFit: 'contain', display: 'block', background: 'var(--bg-surface-subtle)' }}
-          />
+          {preview.startsWith('data:application/pdf') ? (
+            <div style={{
+              padding: '36px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--bg-surface-subtle)',
+              gap: '12px',
+            }}>
+              <div style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-logo-bg)',
+                border: '2px solid var(--color-border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: 'var(--shadow-hard-xs)',
+              }}>
+                <FileText size={30} strokeWidth={2.5} color="#202020" />
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
+                  PDF Invoice Attached
+                </h4>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  Ready for AI material and line-item extraction
+                </p>
+              </div>
+            </div>
+          ) : (
+            <img
+              src={preview}
+              alt="Invoice preview"
+              style={{ width: '100%', maxHeight: '280px', objectFit: 'contain', display: 'block', background: 'var(--bg-surface-subtle)' }}
+            />
+          )}
 
           {/* Processing Overlay with Progress bar */}
           {isProcessing && (
@@ -491,6 +532,38 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
                 </div>
               </div>
             )}
+
+          {/* Upload Error Display */}
+          {uploadError && (
+            <div style={{
+              background: 'var(--color-error)',
+              border: '2px solid var(--color-border)',
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              color: '#202020',
+              fontSize: '13px',
+              boxShadow: 'var(--shadow-hard-xs)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+                <AlertCircle size={18} color="#202020" style={{ flexShrink: 0 }} />
+                <span>{uploadError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                className="btn-icon"
+                style={{ width: '28px', height: '28px', flexShrink: 0 }}
+                title="Dismiss"
+                aria-label="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {/* Main Action Buttons: Two clearly differentiated actions */}
           <div style={{

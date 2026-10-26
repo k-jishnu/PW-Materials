@@ -161,16 +161,50 @@ export const useCamera = () => {
   }, [stopCamera]);
 
   const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>, onFileReady: (base64: string) => void) => {
+    (
+      e: React.ChangeEvent<HTMLInputElement>,
+      onFileReady: (base64: string) => void,
+      onError?: (err: string) => void
+    ) => {
       const file = e.target.files?.[0];
       if (!file) return;
+
+      // 1. Validate file size (10MB limit)
+      const MAX_SIZE = 10 * 1024 * 1024;
+      if (file.size > MAX_SIZE) {
+        e.target.value = '';
+        const msg = `File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds the 10MB limit. Please upload a smaller file.`;
+        if (onError) onError(msg);
+        else setCameraError(msg);
+        return;
+      }
+
+      // 2. Validate file type (JPEG, PNG, WebP, GIF, or PDF)
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const isPdfExt = fileExt === 'pdf';
+      const isImgExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fileExt || '');
+
+      if (!validTypes.includes(file.type) && !isPdfExt && !isImgExt) {
+        e.target.value = '';
+        const msg = `Unsupported file type (${file.type || fileExt || 'unknown'}). Supported formats: JPEG, PNG, WebP, and PDF invoices.`;
+        if (onError) onError(msg);
+        else setCameraError(msg);
+        return;
+      }
 
       const reader = new FileReader();
       reader.onload = (event) => {
         const result = event.target?.result as string;
         if (!result) return;
 
-        // Auto-optimize images > 1920px so mobile uploads don't freeze the browser
+        // For PDF, pass data URL directly without image optimization
+        if (file.type === 'application/pdf' || isPdfExt) {
+          onFileReady(result);
+          return;
+        }
+
+        // Auto-optimize large images > 1920px so mobile uploads don't freeze the browser
         const img = new Image();
         img.onload = () => {
           const maxDim = 1920;
@@ -199,6 +233,11 @@ export const useCamera = () => {
           onFileReady(result);
         };
         img.src = result;
+      };
+      reader.onerror = () => {
+        const msg = 'Failed to read the selected file. Please try another file.';
+        if (onError) onError(msg);
+        else setCameraError(msg);
       };
       reader.readAsDataURL(file);
       // Reset input value so same file can be selected again

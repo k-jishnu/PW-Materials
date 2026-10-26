@@ -12,11 +12,11 @@ export interface ConfidenceField<T> {
 export interface ExtractedLineItemData {
   item_name: string;
   description?: string | null;
-  quantity: number;
+  quantity: number | null;
   unit: string;
-  unit_price: number;
+  unit_price: number | null;
   tax_amount?: number | null;
-  line_total: number;
+  line_total: number | null;
   confidence_score: number;
 }
 
