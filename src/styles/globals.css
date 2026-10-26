@@ -395,6 +395,12 @@ p, span, div, label {
   .storage-indicator {
     display: none !important;
   }
+  .header-settings-btn {
+    display: none !important;
+  }
+  .header-actions {
+    display: none !important;
+  }
 }
 
 /* Bottom Navigation (Mobile Only) */
@@ -536,4 +542,18 @@ p, span, div, label {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-butter-yellow);
+}
+
+/* Modal Responsive 2-Column Grid */
+.modal-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .modal-grid-2col {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
 }

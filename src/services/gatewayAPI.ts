@@ -93,59 +93,57 @@ export class GatewayAPI {
   private mapStructuredToRecognitionResult(
     structured: StructuredRecognitionResult
   ): MaterialRecognitionResult {
-    const firstItem = structured.line_items[0] || {
-      item_name: structured.document_type === 'material_photo' ? 'Identified Material' : 'Material Item',
-      quantity: 1,
-      unit: 'Nos',
-      unit_price: structured.total_amount || 0,
-      tax_amount: structured.tax_amount || 0,
-      line_total: structured.total_amount || 0,
-      confidence_score: 0.92,
-    };
-
-    const hasTax = (firstItem.tax_amount ?? 0) > 0 || (structured.tax_amount ?? 0) > 0;
-    const inferredGSTRate = hasTax && firstItem.unit_price > 0 && firstItem.tax_amount
-      ? Math.round((firstItem.tax_amount / (firstItem.quantity * firstItem.unit_price)) * 100)
-      : hasTax ? 18 : 0;
+    const firstItem = structured.line_items?.[0];
+    const itemName = structured.item_name || firstItem?.item_name || 'Captured Material';
+    const rate = structured.rate !== undefined ? structured.rate : (firstItem?.unit_price ?? null);
+    const vendorName = structured.vendor !== undefined ? structured.vendor : (structured.supplier_name ?? null);
+    const quantityVal = structured.quantity !== undefined ? structured.quantity : (firstItem?.quantity ?? null);
+    const gstRateVal = structured.gst_tax !== undefined ? structured.gst_tax : null;
+    const isGST = gstRateVal !== null ? (gstRateVal > 0) : ((firstItem?.tax_amount ?? 0) > 0 || (structured.tax_amount ?? 0) > 0);
 
     return {
       documentType: structured.document_type,
       item: {
-        name: firstItem.item_name,
-        confidence: firstItem.confidence_score,
+        name: itemName,
+        confidence: firstItem?.confidence_score ?? 0.92,
       },
       vendor: {
-        name: structured.supplier_name || 'Vendor Pending Review',
-        confidence: structured.supplier_name ? 0.92 : 0.65,
+        name: vendorName,
+        confidence: vendorName ? 0.92 : 0.4,
       },
       price: {
-        amount: firstItem.unit_price,
+        amount: rate,
         currency: structured.currency || 'INR',
-        confidence: firstItem.confidence_score,
+        confidence: rate !== null ? 0.95 : 0.0,
       },
       gst: {
-        rate: inferredGSTRate,
-        isGSTInvoice: hasTax,
-        confidence: 0.9,
+        rate: gstRateVal,
+        isGSTInvoice: isGST,
+        confidence: gstRateVal !== null ? 0.9 : 0.0,
       },
       company: {
-        name: 'PW Materials',
-        confidence: 0.85,
+        name: 'PW',
+        confidence: 1.0,
       },
       quantity: {
-        value: firstItem.quantity,
-        unit: firstItem.unit,
-        confidence: firstItem.confidence_score,
+        value: quantityVal,
+        unit: firstItem?.unit || 'Nos',
+        confidence: quantityVal !== null ? 0.95 : 0.0,
       },
       invoiceNumber: structured.invoice_number || undefined,
       invoiceDate: structured.invoice_date || undefined,
       dueDate: structured.due_date || undefined,
-      subtotal: structured.subtotal || undefined,
-      taxAmount: structured.tax_amount || undefined,
-      totalAmount: structured.total_amount || undefined,
+      subtotal: structured.subtotal ?? undefined,
+      taxAmount: structured.tax_amount ?? undefined,
+      totalAmount: structured.total_amount ?? undefined,
       notes: structured.notes || undefined,
       rawText: structured.rawText || JSON.stringify(structured, null, 2),
-      allLineItems: structured.line_items,
+      allLineItems: structured.line_items ? structured.line_items.map((li) => ({
+        ...li,
+        quantity: li.quantity ?? 1,
+        unit_price: li.unit_price ?? 0,
+        line_total: li.line_total ?? ((li.quantity ?? 1) * (li.unit_price ?? 0)),
+      })) : undefined,
     };
   }
 

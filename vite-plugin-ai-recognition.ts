@@ -1,7 +1,7 @@
 // vite-plugin-ai-recognition.ts
 import type { Plugin } from 'vite';
 import { loadEnv } from 'vite';
-import { executeOpenAIVisionRecognition } from './src/services/aiRecognitionEngine';
+import { executeOpenAIVisionRecognition, executeGeminiVisionRecognition } from './src/services/aiRecognitionEngine';
 
 export function aiRecognitionPlugin(): Plugin {
   let envConfig: Record<string, string> = {};
@@ -38,27 +38,36 @@ export function aiRecognitionPlugin(): Plugin {
             }
 
             const dynamicEnv = loadEnv(process.env.NODE_ENV || 'development', process.cwd(), '');
-            const apiKey = process.env.OPENAI_API_KEY || dynamicEnv.OPENAI_API_KEY || envConfig.OPENAI_API_KEY || '';
-            const model = process.env.OPENAI_MODEL || dynamicEnv.OPENAI_MODEL || envConfig.OPENAI_MODEL || 'gpt-4o-mini';
+            const geminiKey = process.env.GEMINI_API_KEY || dynamicEnv.GEMINI_API_KEY || envConfig.GEMINI_API_KEY || '';
+            const geminiModel = process.env.GEMINI_MODEL || dynamicEnv.GEMINI_MODEL || envConfig.GEMINI_MODEL || 'gemini-3.8-flash';
 
-            if (!apiKey) {
+            const openaiKey = process.env.OPENAI_API_KEY || dynamicEnv.OPENAI_API_KEY || envConfig.OPENAI_API_KEY || '';
+            const openaiModel = process.env.OPENAI_MODEL || dynamicEnv.OPENAI_MODEL || envConfig.OPENAI_MODEL || 'gpt-4o-mini';
+
+            let result;
+            let usedModel;
+
+            if (geminiKey && geminiKey.trim()) {
+              usedModel = geminiModel;
+              result = await executeGeminiVisionRecognition(imageBase64, geminiKey, geminiModel);
+            } else if (openaiKey && openaiKey.trim()) {
+              usedModel = openaiModel;
+              result = await executeOpenAIVisionRecognition(imageBase64, openaiKey, openaiModel);
+            } else {
               res.statusCode = 422;
               res.setHeader('Content-Type', 'application/json');
               res.end(
                 JSON.stringify({
-                  error: 'OPENAI_API_KEY is not configured in environment variables (.env / server environment).',
+                  error: 'Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured in your .env file.',
                   code: 'MISSING_API_KEY',
-                  model,
                 })
               );
               return;
             }
 
-            const result = await executeOpenAIVisionRecognition(imageBase64, apiKey, model);
-
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true, model, result }));
+            res.end(JSON.stringify({ success: true, model: usedModel, result }));
           } catch (err: any) {
             console.error('[AI Vision Endpoint Error]:', err.message);
             res.statusCode = 500;

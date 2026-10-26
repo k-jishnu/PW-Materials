@@ -74,8 +74,8 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
       } else if (sortField === 'vendor') {
         comparison = a.vendor.value.localeCompare(b.vendor.value);
       } else if (sortField === 'price') {
-        const totalA = a.price.value * a.quantity.value.value;
-        const totalB = b.price.value * b.quantity.value.value;
+        const totalA = (a.price.value ?? 0) * (a.quantity.value.value ?? 0);
+        const totalB = (b.price.value ?? 0) * (b.quantity.value.value ?? 0);
         comparison = totalA - totalB;
       }
       return sortAsc ? comparison : -comparison;
@@ -355,10 +355,9 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
         </div>
       )}
 
-      {/* Table-Based Layout (Desktop & Detailed view) */}
+      {/* Table-Based Layout (Desktop & Detailed view with Mobile Horizontal Scroll) */}
       {viewMode === 'table' && materials.length > 0 && (
         <div
-          className="table-scroll-container"
           style={{
             background: 'var(--bg-surface)',
             borderRadius: 'var(--radius-lg)',
@@ -383,8 +382,18 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
               </button>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
-              <thead>
+            <div
+              className="table-scroll-container"
+              style={{
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: 0,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
+                <thead>
                 <tr style={{ background: 'var(--color-logo-bg)', borderBottom: '2px solid var(--color-border)', fontSize: '13px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
                   <th style={{ padding: '12px 14px', fontWeight: 700 }}>SKU</th>
                   <th
@@ -422,8 +431,10 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
               </thead>
               <tbody>
                 {sortedMaterials.map((mat) => {
-                  const sub = mat.price.value * mat.quantity.value.value;
-                  const gst = mat.gst.isGSTInvoice ? (sub * mat.gst.rate) / 100 : 0;
+                  const hasPrice = mat.price.value !== null;
+                  const hasQty = mat.quantity.value.value !== null;
+                  const sub = (mat.price.value ?? 0) * (mat.quantity.value.value ?? 0);
+                  const gst = mat.gst.isGSTInvoice && mat.gst.rate !== null ? (sub * mat.gst.rate) / 100 : 0;
                   const net = sub + gst;
 
                   return (
@@ -455,26 +466,26 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                         </div>
                       </td>
 
-                      <td style={{ padding: '12px 14px', color: 'var(--text-primary)' }}>
-                        {mat.vendor.value}
+                      <td style={{ padding: '12px 14px', color: mat.vendor.value ? 'var(--text-primary)' : '#94A3B8' }}>
+                        {mat.vendor.value || '—'}
                       </td>
 
                       <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        ₹{net.toLocaleString('en-IN')}
+                        {hasPrice && hasQty ? `₹${net.toLocaleString('en-IN')}` : '₹--'}
                       </td>
 
-                      <td style={{ padding: '12px 14px', color: 'var(--text-secondary)' }}>
-                        {mat.quantity.value.value} {mat.quantity.value.unit}
+                      <td style={{ padding: '12px 14px', color: hasQty ? 'var(--text-secondary)' : '#94A3B8' }}>
+                        {hasQty ? `${mat.quantity.value.value} ${mat.quantity.value.unit}` : '—'}
                       </td>
 
                       <td style={{ padding: '12px 14px' }}>
-                        <span className={`badge ${mat.gst.isGSTInvoice ? 'badge-success' : 'badge-neutral'}`}>
-                          {mat.gst.isGSTInvoice ? `GST ${mat.gst.rate}%` : 'Non-GST'}
+                        <span className={`badge ${mat.gst.rate !== null && mat.gst.isGSTInvoice ? 'badge-success' : 'badge-neutral'}`}>
+                          {mat.gst.rate !== null ? (mat.gst.isGSTInvoice ? `GST ${mat.gst.rate}%` : `GST ${mat.gst.rate}% (Exempt)`) : '—'}
                         </span>
                       </td>
 
                       <td style={{ padding: '12px 14px', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                        {mat.company.value}
+                        {mat.company.value || 'PW'}
                       </td>
 
                       <td style={{ padding: '12px 14px', textAlign: 'center' }}>
@@ -517,6 +528,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

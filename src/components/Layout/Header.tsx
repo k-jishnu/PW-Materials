@@ -160,7 +160,7 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* Right Section: Storage status & Settings */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* Subtle real storage indicator */}
           <div
             className="storage-indicator"
@@ -196,7 +196,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onOpenSettings}
-            className="btn-icon"
+            className="btn-icon header-settings-btn"
             aria-label="Application Settings"
             title="Settings"
           >
@@ -211,6 +211,12 @@ export const Header: React.FC<HeaderProps> = ({
             display: none !important;
           }
           .storage-indicator {
+            display: none !important;
+          }
+          .header-settings-btn {
+            display: none !important;
+          }
+          .header-actions {
             display: none !important;
           }
         }

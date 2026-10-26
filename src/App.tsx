@@ -102,23 +102,26 @@ export const App: React.FC = () => {
   const allExportableRecords: PurchaseRecord[] = [
     ...purchases,
     ...draftMaterials.map((mat) => {
-      const subTotal = mat.price.value * mat.quantity.value.value;
-      const gstAmount = mat.gst.isGSTInvoice ? (subTotal * mat.gst.rate) / 100 : 0;
+      const priceVal = mat.price.value ?? 0;
+      const qtyVal = mat.quantity.value.value ?? 1;
+      const gstRateVal = mat.gst.rate ?? 0;
+      const subTotal = priceVal * qtyVal;
+      const gstAmount = mat.gst.isGSTInvoice && mat.gst.rate !== null ? (subTotal * gstRateVal) / 100 : 0;
       return {
         id: mat.id,
         date: mat.createdAt ? mat.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
         item: mat.item.value,
         sku: mat.sku,
-        vendor: mat.vendor.value,
-        company: mat.company.value,
-        quantity: mat.quantity.value.value,
+        vendor: mat.vendor.value || 'Unknown Vendor',
+        company: mat.company.value || 'PW',
+        quantity: qtyVal,
         unit: mat.quantity.value.unit,
-        unitPrice: mat.price.value,
+        unitPrice: priceVal,
         totalPrice: subTotal,
-        gstRate: mat.gst.rate,
+        gstRate: gstRateVal,
         gstAmount: gstAmount,
         netAmount: subTotal + gstAmount,
-        isGSTInvoice: mat.gst.isGSTInvoice,
+        isGSTInvoice: mat.gst.isGSTInvoice && mat.gst.rate !== null && mat.gst.rate > 0,
         photoUrl: mat.photoUrl,
         aiRecognized: mat.item.source === 'ai',
         confidenceAverage: mat.item.confidenceScore || 0.95,

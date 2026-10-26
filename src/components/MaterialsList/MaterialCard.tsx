@@ -21,26 +21,39 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editItem, setEditItem] = useState(material.item.value);
-  const [editPrice, setEditPrice] = useState(material.price.value);
-  const [editVendor, setEditVendor] = useState(material.vendor.value);
-  const [editCompany, setEditCompany] = useState(material.company.value);
-  const [editQty, setEditQty] = useState(material.quantity.value.value);
-  const [editUnit, setEditUnit] = useState(material.quantity.value.unit);
-  const [editGstRate, setEditGstRate] = useState(material.gst.rate);
+  const [editPrice, setEditPrice] = useState<number | ''>(material.price.value !== null ? material.price.value : '');
+  const [editVendor, setEditVendor] = useState(material.vendor.value ?? '');
+  const [editCompany, setEditCompany] = useState(material.company.value || 'PW');
+  const [editQty, setEditQty] = useState<number | ''>(material.quantity.value.value !== null ? material.quantity.value.value : '');
+  const [editUnit, setEditUnit] = useState(material.quantity.value.unit || 'Nos');
+  const [editGstRate, setEditGstRate] = useState<number | ''>(material.gst.rate !== null ? material.gst.rate : '');
   const [editIsGst, setEditIsGst] = useState(material.gst.isGSTInvoice);
 
   const handleSaveEdit = () => {
     onUpdateField(material.id, 'item', editItem);
-    onUpdateField(material.id, 'price', editPrice);
-    onUpdateField(material.id, 'vendor', editVendor);
-    onUpdateField(material.id, 'company', editCompany);
-    onUpdateField(material.id, 'quantity', { value: editQty, unit: editUnit });
-    onUpdateField(material.id, 'gst', { rate: editGstRate, isGSTInvoice: editIsGst });
+    onUpdateField(material.id, 'price', editPrice === '' ? null : Number(editPrice));
+    onUpdateField(material.id, 'vendor', editVendor.trim());
+    onUpdateField(material.id, 'company', editCompany.trim() || 'PW');
+    onUpdateField(material.id, 'quantity', {
+      value: editQty === '' ? null : Number(editQty),
+      unit: editUnit,
+    });
+    onUpdateField(material.id, 'gst', {
+      rate: editGstRate === '' ? null : Number(editGstRate),
+      isGSTInvoice: editIsGst,
+    });
     setIsEditing(false);
   };
 
-  const subTotal = material.price.value * material.quantity.value.value;
-  const gstAmount = material.gst.isGSTInvoice ? (subTotal * material.gst.rate) / 100 : 0;
+  const hasPrice = material.price.value !== null;
+  const hasQty = material.quantity.value.value !== null;
+  const hasVendor = Boolean(material.vendor.value && material.vendor.value.trim());
+  const hasGst = material.gst.rate !== null;
+
+  const subTotal = (material.price.value ?? 0) * (material.quantity.value.value ?? 0);
+  const gstAmount = material.gst.isGSTInvoice && material.gst.rate !== null
+    ? (subTotal * material.gst.rate) / 100
+    : 0;
   const netTotal = subTotal + gstAmount;
 
   return (
@@ -120,7 +133,8 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
               <input
                 type="number"
                 value={editPrice}
-                onChange={(e) => setEditPrice(Number(e.target.value))}
+                onChange={(e) => setEditPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="Enter unit rate"
                 className="input-base"
                 style={{ height: '40px', fontSize: '14px' }}
               />
@@ -131,7 +145,8 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
                 <input
                   type="number"
                   value={editQty}
-                  onChange={(e) => setEditQty(Number(e.target.value))}
+                  onChange={(e) => setEditQty(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="Qty"
                   className="input-base"
                   style={{ height: '40px', fontSize: '14px', flex: 1 }}
                 />
@@ -148,11 +163,12 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>Vendor</label>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>Vendor / Brand</label>
               <input
                 type="text"
                 value={editVendor}
                 onChange={(e) => setEditVendor(e.target.value)}
+                placeholder="Manufacturer / Brand"
                 className="input-base"
                 style={{ height: '40px', fontSize: '14px' }}
               />
@@ -163,6 +179,7 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
                 type="text"
                 value={editCompany}
                 onChange={(e) => setEditCompany(e.target.value)}
+                placeholder="PW"
                 className="input-base"
                 style={{ height: '40px', fontSize: '14px' }}
               />
@@ -184,24 +201,21 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
             </div>
             {editIsGst && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <label style={{ fontSize: '11px', color: '#64748B' }}>Rate:</label>
-                <select
+                <label style={{ fontSize: '11px', color: '#64748B' }}>Rate (%):</label>
+                <input
+                  type="number"
                   value={editGstRate}
-                  onChange={(e) => setEditGstRate(Number(e.target.value))}
+                  onChange={(e) => setEditGstRate(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="e.g. 18"
                   style={{
+                    width: '75px',
                     padding: '6px 8px',
                     borderRadius: '8px',
                     border: '1px solid #CBD5E1',
                     fontSize: '12px',
                     fontWeight: 600,
                   }}
-                >
-                  <option value={0}>0%</option>
-                  <option value={5}>5%</option>
-                  <option value={12}>12%</option>
-                  <option value={18}>18%</option>
-                  <option value={28}>28%</option>
-                </select>
+                />
               </div>
             )}
           </div>
@@ -225,7 +239,7 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
           </div>
         </div>
       ) : (
-        /* Regular Card Presentation (Mobile-first pattern) */
+        /* Regular Card Presentation */
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
             <h4 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', flex: 1 }}>
@@ -233,10 +247,10 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
             </h4>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '18px', fontWeight: 900, color: '#202020', fontFamily: 'var(--font-serif)', whiteSpace: 'nowrap' }}>
-                ₹{netTotal.toLocaleString('en-IN')}
+                {hasPrice && hasQty ? `₹${netTotal.toLocaleString('en-IN')}` : '₹--'}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                Rate: ₹{material.price.value.toLocaleString('en-IN')}
+                {hasPrice ? `Rate: ₹${material.price.value!.toLocaleString('en-IN')}` : 'Rate: [Empty - Enter Rate]'}
               </div>
             </div>
           </div>
@@ -252,26 +266,32 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Vendor:</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{material.vendor.value}</span>
+              <span style={{ color: hasVendor ? 'var(--text-primary)' : '#94A3B8', fontWeight: 700 }}>
+                {hasVendor ? material.vendor.value : '[Empty - Enter Vendor]'}
+              </span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Quantity:</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-                {material.quantity.value.value} {material.quantity.value.unit}
+              <span style={{ color: hasQty ? 'var(--text-primary)' : '#94A3B8', fontWeight: 700 }}>
+                {hasQty ? `${material.quantity.value.value} ${material.quantity.value.unit}` : '[Empty - Enter Qty]'}
               </span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>GST Tax:</span>
-              <span className={`badge ${material.gst.isGSTInvoice ? 'badge-success' : 'badge-neutral'}`}>
-                {material.gst.isGSTInvoice ? `GST ${material.gst.rate}% (+₹${gstAmount.toLocaleString('en-IN')})` : 'Non-GST'}
+              <span className={`badge ${hasGst && material.gst.isGSTInvoice ? 'badge-success' : 'badge-neutral'}`}>
+                {hasGst
+                  ? (material.gst.isGSTInvoice
+                      ? `GST ${material.gst.rate}% (+₹${gstAmount.toLocaleString('en-IN')})`
+                      : `GST ${material.gst.rate}% (Exempt)`)
+                  : '[Empty - Enter GST]'}
               </span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Company Ref:</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{material.company.value}</span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{material.company.value || 'PW'}</span>
             </div>
           </div>
 

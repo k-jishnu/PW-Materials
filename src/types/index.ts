@@ -27,16 +27,16 @@ export interface MaterialRecognitionResult {
     confidence: number; // 0 to 1
   };
   vendor: {
-    name: string;
+    name: string | null;
     confidence: number;
   };
   price: {
-    amount: number;
+    amount: number | null;
     currency: string;
     confidence: number;
   };
   gst: {
-    rate: number;
+    rate: number | null;
     isGSTInvoice: boolean;
     confidence: number;
   };
@@ -45,16 +45,16 @@ export interface MaterialRecognitionResult {
     confidence: number;
   };
   quantity: {
-    value: number;
+    value: number | null;
     unit: string;
     confidence: number;
   };
   invoiceNumber?: string;
   invoiceDate?: string;
   dueDate?: string;
-  subtotal?: number;
-  taxAmount?: number;
-  totalAmount?: number;
+  subtotal?: number | null;
+  taxAmount?: number | null;
+  totalAmount?: number | null;
   notes?: string;
   rawText: string;
   allLineItems?: ExtractedLineItemData[];
@@ -65,14 +65,14 @@ export interface Material {
   sku: string; // Monospace SWC / SKU identifier
   item: ConfidenceField<string>;
   vendor: ConfidenceField<string>;
-  price: ConfidenceField<number>;
+  price: ConfidenceField<number | null>;
   company: ConfidenceField<string>;
   quantity: ConfidenceField<{
-    value: number;
+    value: number | null;
     unit: string;
   }>;
   gst: {
-    rate: number;
+    rate: number | null;
     isGSTInvoice: boolean;
     confidence: ConfidenceLevel;
     confidenceScore?: number;

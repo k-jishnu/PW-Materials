@@ -11,7 +11,7 @@ const mapPurchaseToMaterial = (p: PurchaseRecord): Material => ({
   item: { value: p.item, confidence: 'high', confidenceScore: 1.0, source: p.aiRecognized ? 'ai' : 'manual' },
   vendor: { value: p.vendor, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
   price: { value: p.unitPrice, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
-  company: { value: p.company || 'PW Materials', confidence: 'high', confidenceScore: 1.0, source: 'manual' },
+  company: { value: p.company || 'PW', confidence: 'high', confidenceScore: 1.0, source: 'manual' },
   quantity: { value: { value: p.quantity, unit: p.unit }, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
   gst: { rate: p.gstRate, isGSTInvoice: p.isGSTInvoice, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
   photoUrl: p.photoUrl,
@@ -57,9 +57,9 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         const newMaterials: Material[] = recognition.allLineItems.map((lineItem, idx) => {
           const itemTax = lineItem.tax_amount || 0;
           const isTaxInvoice = itemTax > 0 || recognition.gst.isGSTInvoice;
-          const inferredRate = lineItem.unit_price > 0 && itemTax > 0
+          const inferredRate = lineItem.unit_price !== null && lineItem.unit_price > 0 && itemTax > 0 && lineItem.quantity
             ? Math.round((itemTax / (lineItem.quantity * lineItem.unit_price)) * 100)
-            : recognition.gst.rate || 18;
+            : recognition.gst.rate !== null ? recognition.gst.rate : (isTaxInvoice ? 18 : 0);
 
           return {
             id: `mat-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
@@ -71,26 +71,26 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
               source: 'ai',
             },
             vendor: {
-              value: recognition.vendor.name || 'Vendor Pending',
+              value: recognition.vendor.name || '',
               confidence: scoreToConfidenceLevel(recognition.vendor.confidence),
               confidenceScore: recognition.vendor.confidence,
               source: 'ai',
             },
             price: {
-              value: lineItem.unit_price || 0,
+              value: lineItem.unit_price !== undefined ? lineItem.unit_price : null,
               confidence: scoreToConfidenceLevel(lineItem.confidence_score),
               confidenceScore: lineItem.confidence_score,
               source: 'ai',
             },
             company: {
-              value: recognition.company.name || 'PW Materials',
-              confidence: scoreToConfidenceLevel(recognition.company.confidence),
-              confidenceScore: recognition.company.confidence,
-              source: 'ai',
+              value: 'PW',
+              confidence: 'high',
+              confidenceScore: 1.0,
+              source: 'manual',
             },
             quantity: {
               value: {
-                value: lineItem.quantity || 1,
+                value: lineItem.quantity !== undefined ? lineItem.quantity : null,
                 unit: lineItem.unit || 'Nos',
               },
               confidence: scoreToConfidenceLevel(lineItem.confidence_score),
@@ -129,26 +129,26 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
           source: 'ai',
         },
         vendor: {
-          value: recognition.vendor.name || 'Vendor Pending',
+          value: recognition.vendor.name || '',
           confidence: scoreToConfidenceLevel(recognition.vendor.confidence),
           confidenceScore: recognition.vendor.confidence,
           source: 'ai',
         },
         price: {
-          value: recognition.price.amount || 0,
+          value: recognition.price.amount !== undefined ? recognition.price.amount : null,
           confidence: scoreToConfidenceLevel(recognition.price.confidence),
           confidenceScore: recognition.price.confidence,
           source: 'ai',
         },
         company: {
-          value: recognition.company.name || 'PW Materials',
-          confidence: scoreToConfidenceLevel(recognition.company.confidence),
-          confidenceScore: recognition.company.confidence,
-          source: 'ai',
+          value: 'PW',
+          confidence: 'high',
+          confidenceScore: 1.0,
+          source: 'manual',
         },
         quantity: {
           value: {
-            value: recognition.quantity.value || 1,
+            value: recognition.quantity.value !== undefined ? recognition.quantity.value : null,
             unit: recognition.quantity.unit || 'Nos',
           },
           confidence: scoreToConfidenceLevel(recognition.quantity.confidence),
@@ -156,8 +156,8 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
           source: 'ai',
         },
         gst: {
-          rate: recognition.gst.rate || 18,
-          isGSTInvoice: recognition.gst.isGSTInvoice ?? true,
+          rate: recognition.gst.rate !== undefined ? recognition.gst.rate : null,
+          isGSTInvoice: recognition.gst.isGSTInvoice ?? (recognition.gst.rate !== null && recognition.gst.rate > 0),
           confidence: scoreToConfidenceLevel(recognition.gst.confidence),
           confidenceScore: recognition.gst.confidence,
           source: 'ai',
@@ -235,24 +235,31 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
           } else if (field === 'item') {
             updated.item = { value: newValue, confidence: 'high', source: 'manual' };
           } else if (field === 'vendor') {
-            updated.vendor = { value: newValue, confidence: 'high', source: 'manual' };
+            updated.vendor = { value: newValue || '', confidence: 'high', source: 'manual' };
           } else if (field === 'price') {
-            updated.price = { value: Number(newValue) || 0, confidence: 'high', source: 'manual' };
+            const pVal = newValue === '' || newValue === null || isNaN(Number(newValue)) ? null : Number(newValue);
+            updated.price = { value: pVal, confidence: 'high', source: 'manual' };
           } else if (field === 'company') {
-            updated.company = { value: newValue, confidence: 'high', source: 'manual' };
+            updated.company = { value: newValue || 'PW', confidence: 'high', source: 'manual' };
           } else if (field === 'quantity') {
+            const qVal = newValue?.value === '' || newValue?.value === null || isNaN(Number(newValue?.value))
+              ? null
+              : Number(newValue.value);
             updated.quantity = {
               value: {
-                value: Number(newValue.value) || 1,
-                unit: newValue.unit || 'Nos',
+                value: qVal,
+                unit: newValue?.unit || 'Nos',
               },
               confidence: 'high',
               source: 'manual',
             };
           } else if (field === 'gst') {
+            const gVal = newValue?.rate === '' || newValue?.rate === null || isNaN(Number(newValue?.rate))
+              ? null
+              : Number(newValue.rate);
             updated.gst = {
-              rate: Number(newValue.rate) || 0,
-              isGSTInvoice: Boolean(newValue.isGSTInvoice),
+              rate: gVal,
+              isGSTInvoice: Boolean(newValue?.isGSTInvoice),
               confidence: 'high',
               source: 'manual',
             };
@@ -294,14 +301,17 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
     });
   }, []);
 
-  // Move a material to Purchase History & Supabase (as requested in Handwritten Page 1 & 3)
+  // Move a material to Purchase History & Supabase
   const commitToPurchases = useCallback(
     async (materialId: string) => {
       const mat = draftMaterials.find((m) => m.id === materialId);
       if (!mat) return;
 
-      const subTotal = mat.price.value * mat.quantity.value.value;
-      const gstAmount = mat.gst.isGSTInvoice ? (subTotal * mat.gst.rate) / 100 : 0;
+      const priceVal = mat.price.value ?? 0;
+      const qtyVal = mat.quantity.value.value ?? 1;
+      const gstRateVal = mat.gst.rate ?? 0;
+      const subTotal = priceVal * qtyVal;
+      const gstAmount = mat.gst.isGSTInvoice && mat.gst.rate !== null ? (subTotal * gstRateVal) / 100 : 0;
       const netTotal = subTotal + gstAmount;
 
       const purchaseRecord: PurchaseRecord = {
@@ -309,16 +319,16 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         date: new Date().toISOString().split('T')[0],
         item: mat.item.value,
         sku: mat.sku,
-        vendor: mat.vendor.value,
-        company: mat.company.value,
-        quantity: mat.quantity.value.value,
+        vendor: mat.vendor.value || 'Unknown Vendor',
+        company: mat.company.value || 'PW',
+        quantity: qtyVal,
         unit: mat.quantity.value.unit,
-        unitPrice: mat.price.value,
+        unitPrice: priceVal,
         totalPrice: subTotal,
-        gstRate: mat.gst.rate,
+        gstRate: gstRateVal,
         gstAmount: gstAmount,
         netAmount: netTotal,
-        isGSTInvoice: mat.gst.isGSTInvoice,
+        isGSTInvoice: mat.gst.isGSTInvoice && mat.gst.rate !== null && mat.gst.rate > 0,
         photoUrl: mat.photoUrl,
         aiRecognized: mat.item.source === 'ai',
         confidenceAverage: mat.item.confidenceScore || 0.95,

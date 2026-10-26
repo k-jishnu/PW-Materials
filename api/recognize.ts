@@ -1,7 +1,7 @@
 // api/recognize.ts
 // Vercel Serverless Function for secure server-side OpenAI Vision processing
 
-import { executeOpenAIVisionRecognition } from '../src/services/aiRecognitionEngine';
+import { executeOpenAIVisionRecognition, executeGeminiVisionRecognition } from '../src/services/aiRecognitionEngine';
 
 export const config = {
   api: {
@@ -23,22 +23,31 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Missing required imageBase64 in request body.' });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY || '';
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const geminiKey = process.env.GEMINI_API_KEY || '';
+    const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
-    if (!apiKey) {
+    const openaiKey = process.env.OPENAI_API_KEY || '';
+    const openaiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    let result;
+    let usedModel;
+
+    if (geminiKey && geminiKey.trim()) {
+      usedModel = geminiModel;
+      result = await executeGeminiVisionRecognition(imageBase64, geminiKey, geminiModel);
+    } else if (openaiKey && openaiKey.trim()) {
+      usedModel = openaiModel;
+      result = await executeOpenAIVisionRecognition(imageBase64, openaiKey, openaiModel);
+    } else {
       return res.status(422).json({
-        error: 'OPENAI_API_KEY is not configured in Vercel environment variables.',
+        error: 'Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured.',
         code: 'MISSING_API_KEY',
-        model,
       });
     }
 
-    const result = await executeOpenAIVisionRecognition(imageBase64, apiKey, model);
-
     return res.status(200).json({
       success: true,
-      model,
+      model: usedModel,
       result,
     });
   } catch (err: any) {

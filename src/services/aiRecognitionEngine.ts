@@ -4,16 +4,22 @@
 export interface ExtractedLineItem {
   item_name: string;
   description?: string | null;
-  quantity: number;
+  quantity: number | null;
   unit: string;
-  unit_price: number;
+  unit_price: number | null;
   tax_amount?: number | null;
-  line_total: number;
+  line_total: number | null;
   confidence_score: number;
 }
 
 export interface StructuredRecognitionResult {
   document_type: 'invoice' | 'receipt' | 'material_photo' | 'unknown';
+  item_name: string;
+  rate: number | null;
+  vendor: string | null;
+  quantity: number | null;
+  gst_tax: number | null;
+  company_ref: string;
   supplier_name: string | null;
   invoice_number: string | null;
   invoice_date: string | null;
@@ -27,54 +33,101 @@ export interface StructuredRecognitionResult {
   rawText?: string;
 }
 
-export const OPENAI_VISION_SYSTEM_PROMPT = `You are a high-precision AI vision recognition engine for construction, industrial procurement, and invoice management.
-Your task is to analyze images of purchase invoices, store bills, receipts, or photos of physical materials/supplies.
+export const OPENAI_VISION_SYSTEM_PROMPT = `You are a high-precision AI vision recognition engine for PW Materials, specialized in construction materials, supplies, and invoices.
+Analyze the image and return strictly valid JSON matching the schema below.
 
-STRICT INSTRUCTIONS:
 1. DOCUMENT IDENTIFICATION:
-   - If the image is a bill, invoice, delivery note, or purchase receipt, set "document_type" to "invoice" or "receipt".
-   - If the image is a photo of a physical material, tool, equipment, or building product (e.g., steel rebars, cement bags, PVC pipes, cables, bricks), set "document_type" to "material_photo".
-   - If unreadable, set "document_type" to "unknown".
+- Distinguish a physical construction material photo from an invoice or receipt.
+- Set "document_type" to "material_photo" when the image shows physical construction materials, tools, equipment, or building products.
+- Set "document_type" to "invoice" or "receipt" when the image shows a bill, invoice, tax invoice, delivery note, or store receipt.
+- Set "document_type" to "unknown" if unreadable or neither.
 
-2. INVOICE EXTRACTION:
-   - Extract supplier/vendor name, invoice/bill number, invoice date (YYYY-MM-DD), currency (default "INR" for Indian rupees if ₹ or GST mentioned), subtotal, tax amount, and total amount.
-   - Extract individual line items with item name, quantity, unit (e.g. Nos, Bags, Kg, Meters, Pcs, Bundles, Tons), unit price, tax amount, and line total.
-   - Calculate confidence_score between 0.0 and 1.0 for each item.
-   - Do NOT fabricate information. If a field is not visible, set it to null.
+2. EXTRACTION RULES FOR PHYSICAL MATERIAL PHOTOS:
+When the image is a photo of physical construction material, extract and return these exact fields:
+- item_name: Predict the most likely material name from the image. Use visible labels, packaging, markings, and visual characteristics (e.g., "UltraTech 53 Grade Portland Cement", "Fe550 TMT Rebar 12mm", "Finolex 2.5 sq mm PVC Insulated Copper Wire", "Red Clay Bricks"). If uncertain, provide a best-effort prediction for the user to edit.
+- rate: Extract the unit price only if explicitly visible or mentioned on the product packaging, price tag, or label. If not provided or not visible, return null. NEVER invent, fabricate, or assume a price.
+- vendor: Identify the product's manufacturer or brand/company from visible packaging, labels, or logos (e.g., "UltraTech", "Tata Tiscon", "Supreme", "Havells"). Do not confuse the manufacturer with a third-party seller or supplier. If unknown or not clearly visible, return null. Never use placeholder strings like "Unknown", "N/A", or "Not found".
+- quantity: Count the visible items in the picture when they can be distinguished reliably. Return the count as a number (e.g., 1, 5, 20). If the image shows loose, overlapping, piled, or uncountable materials (such as loose gravel, bulk sand, or a tangled rebar pile), return null instead of guessing. Do not assume quantity from packaging unless the quantity is clearly printed.
+- gst_tax: Do not guess or calculate GST from the image. Return null and let the user enter or edit it manually. Extract a GST rate (as a numeric percentage, e.g. 18) only if it is explicitly visible and clearly associated with the item in the image.
+- company_ref: Default to "PW". This is a fixed application default, not an AI prediction.
 
-3. PHYSICAL MATERIAL PHOTO RULES:
-   - Identify visible material characteristics, grade, brand, size, or type (e.g. "Fe550 TMT Steel Rebar 12mm", "UltraTech 53 Grade Portland Cement").
-   - Propose a clean item_name and description.
-   - DO NOT fabricate supplier names, invoice numbers, prices, or purchase dates from a physical material photo. Set supplier_name, invoice_number, and invoice_date to null.
-   - Set quantity to 1 (or count visible distinct items if clearly countable), unit to appropriate unit (Nos, Bags, etc.), unit_price to 0.
-   - In notes, write: "Identified from material photo. Please verify details and enter supplier/price."
+3. INVOICE / RECEIPT EXTRACTION RULES:
+When the image is an invoice or receipt, preserve full invoice recognition behavior:
+- supplier_name: Vendor or supplier company name, or null.
+- invoice_number: Invoice identifier or bill number, or null.
+- invoice_date: Date in YYYY-MM-DD format, or null.
+- due_date: Due date in YYYY-MM-DD format, or null.
+- currency: Currency code (default "INR" for Indian rupees if ₹ or GST mentioned).
+- subtotal: Numeric subtotal before tax, or null.
+- tax_amount: Total tax amount, or null.
+- total_amount: Grand total amount, or null.
+- notes: Summary remarks or invoice notes, or null.
+- line_items: Array of extracted line items:
+  [
+    {
+      "item_name": "Name of material/item",
+      "description": "Short description or specification, or null",
+      "quantity": number or null,
+      "unit": "Nos" | "Bags" | "Kg" | "Meters" | "Pcs" | "Tons" etc.,
+      "unit_price": number or null,
+      "tax_amount": number or null,
+      "line_total": number or null,
+      "confidence_score": 0.0 to 1.0
+    }
+  ]
+- Map the primary line item to the required top-level fields:
+  - item_name: Name of the primary item.
+  - rate: Unit price of the primary item, or null.
+  - vendor: Supplier/vendor company name, or null.
+  - quantity: Quantity of primary item, or null.
+  - gst_tax: Explicit or inferred GST rate percentage (e.g. 18), or null.
+  - company_ref: "PW".
 
-4. OUTPUT FORMAT:
-   Return strictly valid JSON matching this schema:
-   {
-     "document_type": "invoice" | "receipt" | "material_photo" | "unknown",
-     "supplier_name": string or null,
-     "invoice_number": string or null,
-     "invoice_date": "YYYY-MM-DD" or null,
-     "due_date": "YYYY-MM-DD" or null,
-     "currency": "INR",
-     "subtotal": number or null,
-     "tax_amount": number or null,
-     "total_amount": number or null,
-     "notes": string or null,
-     "line_items": [
-       {
-         "item_name": "Name of material",
-         "description": "Short description",
-         "quantity": 1,
-         "unit": "Nos",
-         "unit_price": 100.00,
-         "tax_amount": 18.00,
-         "line_total": 118.00,
-         "confidence_score": 0.95
-       }
-     ]
-   }`;
+4. REQUIRED OUTPUT FORMAT:
+Return valid JSON only, matching this structure:
+{
+  "document_type": "material_photo" | "invoice" | "receipt" | "unknown",
+  "item_name": "Predicted material name",
+  "rate": null,
+  "vendor": null,
+  "quantity": null,
+  "gst_tax": null,
+  "company_ref": "PW",
+  "supplier_name": null,
+  "invoice_number": null,
+  "invoice_date": null,
+  "due_date": null,
+  "currency": "INR",
+  "subtotal": null,
+  "tax_amount": null,
+  "total_amount": null,
+  "notes": null,
+  "line_items": []
+}
+
+IMPORTANT SAFEGUARDS:
+- Never fabricate prices, GST, vendor names, or quantities.
+- Use actual extracted values where supported by evidence.
+- Use null for missing or uncertain values, NOT strings such as "Unknown", "N/A", or "Not found".
+- Return valid JSON only without markdown formatting.`;
+
+function cleanStringOrNull(val: any): string | null {
+  if (typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (['unknown', 'n/a', 'na', 'not found', 'none', 'null', 'undefined', '-', 'nil'].includes(lower)) {
+    return null;
+  }
+  return trimmed;
+}
+
+function cleanNumberOrNull(val: any): number | null {
+  if (val === null || val === undefined || val === '') return null;
+  const num = Number(val);
+  if (isNaN(num)) return null;
+  return num;
+}
 
 /**
  * Validates and normalizes the parsed JSON output from the AI model
@@ -84,12 +137,24 @@ export function validateAndNormalizeRecognition(rawJson: any): StructuredRecogni
     throw new Error('AI output is not a valid JSON object');
   }
 
-  const document_type = ['invoice', 'receipt', 'material_photo', 'unknown'].includes(rawJson.document_type)
-    ? rawJson.document_type
-    : 'unknown';
+  const document_type: 'invoice' | 'receipt' | 'material_photo' | 'unknown' =
+    ['invoice', 'receipt', 'material_photo', 'unknown'].includes(rawJson.document_type)
+      ? rawJson.document_type
+      : (rawJson.invoice_number || (Array.isArray(rawJson.line_items) && rawJson.line_items.length > 1) ? 'invoice' : 'material_photo');
 
-  const supplier_name = typeof rawJson.supplier_name === 'string' ? rawJson.supplier_name.trim() : null;
-  const invoice_number = typeof rawJson.invoice_number === 'string' ? rawJson.invoice_number.trim() : null;
+  // Top-level mapped fields with null-safety and sanitization
+  const rawItemName = cleanStringOrNull(rawJson.item_name) ||
+    (Array.isArray(rawJson.line_items) && rawJson.line_items[0] ? cleanStringOrNull(rawJson.line_items[0].item_name) : null);
+  const item_name = rawItemName || (document_type === 'material_photo' ? 'Predicted Material' : 'Invoice Item');
+
+  const rate = cleanNumberOrNull(rawJson.rate !== undefined ? rawJson.rate : rawJson.line_items?.[0]?.unit_price);
+  const vendor = cleanStringOrNull(rawJson.vendor) || cleanStringOrNull(rawJson.supplier_name);
+  const quantity = cleanNumberOrNull(rawJson.quantity !== undefined ? rawJson.quantity : rawJson.line_items?.[0]?.quantity);
+  const gst_tax = cleanNumberOrNull(rawJson.gst_tax);
+  const company_ref = 'PW'; // Fixed application default
+
+  const supplier_name = cleanStringOrNull(rawJson.supplier_name) || vendor;
+  const invoice_number = cleanStringOrNull(rawJson.invoice_number);
 
   // Date validation (YYYY-MM-DD or parseable)
   let invoice_date: string | null = null;
@@ -109,10 +174,10 @@ export function validateAndNormalizeRecognition(rawJson: any): StructuredRecogni
   }
 
   const currency = typeof rawJson.currency === 'string' && rawJson.currency.trim() ? rawJson.currency.trim() : 'INR';
-  const subtotal = typeof rawJson.subtotal === 'number' && !isNaN(rawJson.subtotal) ? Math.max(0, rawJson.subtotal) : null;
-  const tax_amount = typeof rawJson.tax_amount === 'number' && !isNaN(rawJson.tax_amount) ? Math.max(0, rawJson.tax_amount) : null;
-  const total_amount = typeof rawJson.total_amount === 'number' && !isNaN(rawJson.total_amount) ? Math.max(0, rawJson.total_amount) : null;
-  const notes = typeof rawJson.notes === 'string' ? rawJson.notes.trim() : null;
+  const subtotal = cleanNumberOrNull(rawJson.subtotal);
+  const tax_amount = cleanNumberOrNull(rawJson.tax_amount);
+  const total_amount = cleanNumberOrNull(rawJson.total_amount);
+  const notes = cleanStringOrNull(rawJson.notes);
 
   // Normalize line items
   const rawItems = Array.isArray(rawJson.line_items) ? rawJson.line_items : [];
@@ -120,60 +185,52 @@ export function validateAndNormalizeRecognition(rawJson: any): StructuredRecogni
 
   for (const item of rawItems) {
     if (!item || typeof item !== 'object') continue;
-    const item_name = typeof item.item_name === 'string' && item.item_name.trim()
-      ? item.item_name.trim()
-      : 'Unspecified Material';
-
-    const quantity = typeof item.quantity === 'number' && !isNaN(item.quantity) && item.quantity > 0
-      ? item.quantity
-      : 1;
-
+    const item_name_clean = cleanStringOrNull(item.item_name) || 'Unspecified Material';
+    const item_qty = cleanNumberOrNull(item.quantity);
     const unit = typeof item.unit === 'string' && item.unit.trim() ? item.unit.trim() : 'Nos';
-
-    const unit_price = typeof item.unit_price === 'number' && !isNaN(item.unit_price) && item.unit_price >= 0
-      ? item.unit_price
-      : 0;
-
-    const item_tax = typeof item.tax_amount === 'number' && !isNaN(item.tax_amount)
-      ? item.tax_amount
-      : null;
-
-    let line_total = typeof item.line_total === 'number' && !isNaN(item.line_total) && item.line_total >= 0
-      ? item.line_total
-      : quantity * unit_price + (item_tax || 0);
+    const item_rate = cleanNumberOrNull(item.unit_price);
+    const item_tax = cleanNumberOrNull(item.tax_amount);
+    const item_total = cleanNumberOrNull(item.line_total) ??
+      (item_qty !== null && item_rate !== null ? item_qty * item_rate + (item_tax || 0) : null);
 
     const confidence_score = typeof item.confidence_score === 'number' && !isNaN(item.confidence_score)
       ? Math.min(1.0, Math.max(0.0, item.confidence_score))
       : 0.90;
 
     line_items.push({
-      item_name,
-      description: typeof item.description === 'string' ? item.description.trim() : null,
-      quantity,
+      item_name: item_name_clean,
+      description: cleanStringOrNull(item.description),
+      quantity: item_qty,
       unit,
-      unit_price,
+      unit_price: item_rate,
       tax_amount: item_tax,
-      line_total,
+      line_total: item_total,
       confidence_score,
     });
   }
 
-  // If no items were extracted but document was recognized, provide a fallback item
+  // If no items were extracted, construct a primary line item from top-level fields
   if (line_items.length === 0) {
     line_items.push({
-      item_name: document_type === 'material_photo' ? 'Captured Material' : 'Invoice Item',
+      item_name,
       description: notes || null,
-      quantity: 1,
+      quantity,
       unit: 'Nos',
-      unit_price: total_amount || 0,
-      tax_amount: tax_amount || 0,
-      line_total: total_amount || 0,
-      confidence_score: 0.85,
+      unit_price: rate,
+      tax_amount: tax_amount || null,
+      line_total: total_amount || (rate !== null && quantity !== null ? rate * quantity : null),
+      confidence_score: 0.88,
     });
   }
 
   return {
     document_type,
+    item_name,
+    rate,
+    vendor,
+    quantity,
+    gst_tax,
+    company_ref,
     supplier_name,
     invoice_number,
     invoice_date,
@@ -222,7 +279,7 @@ export async function executeOpenAIVisionRecognition(
         content: [
           {
             type: 'text',
-            text: 'Extract the document and purchase/material information from this image into strict JSON according to the schema.',
+            text: 'Identify the construction material or invoice details from this image. Return valid JSON only following the schema and extraction rules.',
           },
           {
             type: 'image_url',
@@ -273,5 +330,108 @@ export async function executeOpenAIVisionRecognition(
 
   const validated = validateAndNormalizeRecognition(parsed);
   validated.rawText = content;
+  return validated;
+}
+
+/**
+ * Execute vision recognition via Google Gemini API
+ * Supports Gemini 1.5 Pro, Gemini 1.5 Flash, Gemini 2.0 Flash, etc.
+ */
+export async function executeGeminiVisionRecognition(
+  imageBase64: string,
+  apiKey: string,
+  modelName: string = 'gemini-3.8-flash'
+): Promise<StructuredRecognitionResult> {
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error('GEMINI_API_KEY is not configured on the server.');
+  }
+
+  // Extract pure base64 data and mimeType
+  let mimeType = 'image/jpeg';
+  let pureBase64 = imageBase64.trim();
+
+  if (pureBase64.startsWith('data:')) {
+    const match = pureBase64.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      mimeType = match[1];
+      pureBase64 = match[2];
+    } else {
+      pureBase64 = pureBase64.replace(/^data:[^;]+;base64,/, '');
+    }
+  }
+
+  // Model normalization
+  let chosenModel = modelName.trim() || 'gemini-1.5-flash';
+  // Strip any accidental prefix like models/
+  chosenModel = chosenModel.replace(/^models\//, '');
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent?key=${apiKey.trim()}`;
+
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          {
+            text: `${OPENAI_VISION_SYSTEM_PROMPT}\n\nAnalyze this image and return the structured JSON data:`
+          },
+          {
+            inline_data: {
+              mime_type: mimeType,
+              data: pureBase64
+            }
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      response_mime_type: 'application/json'
+    }
+  };
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    let errBody = '';
+    try {
+      const errJson = await response.json();
+      errBody = errJson.error?.message || JSON.stringify(errJson);
+    } catch {
+      errBody = await response.text();
+    }
+    throw new Error(`Gemini Vision API error (${response.status}): ${errBody || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const candidate = data.candidates?.[0];
+  const content = candidate?.content?.parts?.[0]?.text;
+
+  if (!content) {
+    throw new Error('Gemini returned an empty response.');
+  }
+
+  // Strip markdown code fences if Gemini added them despite response_mime_type
+  let cleaned = content.trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e: any) {
+    throw new Error(`Failed to parse Gemini JSON response: ${e.message}`);
+  }
+
+  const validated = validateAndNormalizeRecognition(parsed);
+  validated.rawText = cleaned;
   return validated;
 }
