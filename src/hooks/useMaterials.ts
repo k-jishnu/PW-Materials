@@ -1,8 +1,22 @@
 // src/hooks/useMaterials.ts
+//
+// ============================================================
+// PHASE 1: Uses localDataService (localStorage only)
+// To reconnect Supabase: replace localDataService imports with
+// supabaseService equivalents and update addPurchase signature.
+// ============================================================
+
 import { useState, useCallback, useEffect } from 'react';
 import { Material, MaterialRecognitionResult, PurchaseRecord } from '@/types';
 import { scoreToConfidenceLevel } from './useAIRecognition';
-import { supabaseService } from '@/services/supabaseClient';
+import {
+  getDraftMaterials,
+  saveDraftMaterials,
+  getPurchases,
+  addPurchase,
+  insertMaterial,
+  deletePurchase,
+} from '@/services/localDataService';
 import confetti from 'canvas-confetti';
 
 const mapPurchaseToMaterial = (p: PurchaseRecord): Material => ({
@@ -21,45 +35,44 @@ const mapPurchaseToMaterial = (p: PurchaseRecord): Material => ({
 });
 
 export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void) => {
-  const [draftMaterials, setDraftMaterials] = useState<Material[]>(() => {
-    return supabaseService.getDraftMaterials();
-  });
-  const [savedMaterials, setSavedMaterials] = useState<Material[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Drafts: loaded from localStorage immediately (no async)
+  const [draftMaterials, setDraftMaterials] = useState<Material[]>(() => getDraftMaterials());
 
-  const refreshMaterials = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const purchases = await supabaseService.getPurchases();
-      const mapped = purchases.map(mapPurchaseToMaterial);
-      setSavedMaterials(mapped);
-    } catch (e) {
-      console.warn('Error refreshing materials from Supabase:', e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // Saved materials: loaded once on mount from local storage
+  const [savedMaterials, setSavedMaterials] = useState<Material[]>(() =>
+    getPurchases().map(mapPurchaseToMaterial)
+  );
 
+  const [isLoading] = useState(false);
+
+  // Keep draft materials synced to localStorage on every change
   useEffect(() => {
-    refreshMaterials();
-  }, [refreshMaterials]);
-
-  // Keep draft materials synced to local storage
-  useEffect(() => {
-    supabaseService.saveDraftMaterials(draftMaterials);
+    saveDraftMaterials(draftMaterials);
   }, [draftMaterials]);
 
-  // Autofill material from AI recognition result (supports multi-line items from invoices)
+  // Reload saved materials from localStorage (used after commit/delete)
+  const refreshSavedMaterials = useCallback(() => {
+    setSavedMaterials(getPurchases().map(mapPurchaseToMaterial));
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Add from AI recognition result (supports multi-line invoice items)
+  // ---------------------------------------------------------------------------
   const addMaterialFromRecognition = useCallback(
     (recognition: MaterialRecognitionResult, photoUrl?: string) => {
-      // If multiple line items were detected in the invoice, add each as a reviewable item
+      // Multi-item invoice: each line item becomes a separate draft card
       if (recognition.allLineItems && recognition.allLineItems.length > 1) {
         const newMaterials: Material[] = recognition.allLineItems.map((lineItem, idx) => {
           const itemTax = lineItem.tax_amount || 0;
           const isTaxInvoice = itemTax > 0 || recognition.gst.isGSTInvoice;
-          const inferredRate = lineItem.unit_price !== null && lineItem.unit_price > 0 && itemTax > 0 && lineItem.quantity
-            ? Math.round((itemTax / (lineItem.quantity * lineItem.unit_price)) * 100)
-            : recognition.gst.rate !== null ? recognition.gst.rate : (isTaxInvoice ? 18 : 0);
+          const inferredRate =
+            lineItem.unit_price !== null && lineItem.unit_price > 0 && itemTax > 0 && lineItem.quantity
+              ? Math.round((itemTax / (lineItem.quantity * lineItem.unit_price)) * 100)
+              : recognition.gst.rate !== null
+              ? recognition.gst.rate
+              : isTaxInvoice
+              ? 18
+              : 0;
 
           return {
             id: `mat-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
@@ -82,12 +95,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
               confidenceScore: lineItem.confidence_score,
               source: 'ai',
             },
-            company: {
-              value: 'PW',
-              confidence: 'high',
-              confidenceScore: 1.0,
-              source: 'manual',
-            },
+            company: { value: 'PW', confidence: 'high', confidenceScore: 1.0, source: 'manual' },
             quantity: {
               value: {
                 value: lineItem.quantity !== undefined ? lineItem.quantity : null,
@@ -118,6 +126,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         return newMaterials[0];
       }
 
+      // Single item
       const generatedSKU = `SWC-${Date.now().toString().slice(-6)}`;
       const newMaterial: Material = {
         id: `mat-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -140,12 +149,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
           confidenceScore: recognition.price.confidence,
           source: 'ai',
         },
-        company: {
-          value: 'PW',
-          confidence: 'high',
-          confidenceScore: 1.0,
-          source: 'manual',
-        },
+        company: { value: 'PW', confidence: 'high', confidenceScore: 1.0, source: 'manual' },
         quantity: {
           value: {
             value: recognition.quantity.value !== undefined ? recognition.quantity.value : null,
@@ -157,7 +161,8 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         },
         gst: {
           rate: recognition.gst.rate !== undefined ? recognition.gst.rate : null,
-          isGSTInvoice: recognition.gst.isGSTInvoice ?? (recognition.gst.rate !== null && recognition.gst.rate > 0),
+          isGSTInvoice:
+            recognition.gst.isGSTInvoice ?? (recognition.gst.rate !== null && recognition.gst.rate > 0),
           confidence: scoreToConfidenceLevel(recognition.gst.confidence),
           confidenceScore: recognition.gst.confidence,
           source: 'ai',
@@ -177,9 +182,11 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
     []
   );
 
-  // Manual material addition - directly inserts into Supabase and refreshes
+  // ---------------------------------------------------------------------------
+  // Manual material addition — local only, synchronous
+  // ---------------------------------------------------------------------------
   const addManualMaterial = useCallback(
-    async (itemData: {
+    (itemData: {
       item: string;
       vendor: string;
       price: number;
@@ -189,7 +196,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
       gstRate: number;
       isGSTInvoice: boolean;
     }) => {
-      const res = await supabaseService.insertMaterial({
+      const res = insertMaterial({
         name: itemData.item,
         vendor: itemData.vendor,
         company: itemData.company,
@@ -201,10 +208,12 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
       });
 
       if (!res.success) {
-        return { success: false, error: res.error || 'Failed to save material to Supabase' };
+        return { success: false, error: res.error || 'Failed to save material.' };
       }
 
-      await refreshMaterials();
+      // Refresh saved list immediately
+      refreshSavedMaterials();
+      onPurchaseAdded?.(res.data!);
 
       try {
         confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
@@ -214,20 +223,17 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
 
       return { success: true };
     },
-    [refreshMaterials]
+    [refreshSavedMaterials, onPurchaseAdded]
   );
 
-  // Update a field inline
+  // ---------------------------------------------------------------------------
+  // Inline field editing for draft cards
+  // ---------------------------------------------------------------------------
   const updateMaterialField = useCallback(
-    (
-      id: string,
-      field: 'item' | 'vendor' | 'price' | 'company' | 'quantity' | 'gst' | 'sku',
-      newValue: any
-    ) => {
+    (id: string, field: 'item' | 'vendor' | 'price' | 'company' | 'quantity' | 'gst' | 'sku', newValue: any) => {
       setDraftMaterials((prev) =>
         prev.map((mat) => {
           if (mat.id !== id) return mat;
-
           const updated = { ...mat, updatedAt: new Date().toISOString() };
 
           if (field === 'sku') {
@@ -237,26 +243,26 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
           } else if (field === 'vendor') {
             updated.vendor = { value: newValue || '', confidence: 'high', source: 'manual' };
           } else if (field === 'price') {
-            const pVal = newValue === '' || newValue === null || isNaN(Number(newValue)) ? null : Number(newValue);
+            const pVal =
+              newValue === '' || newValue === null || isNaN(Number(newValue)) ? null : Number(newValue);
             updated.price = { value: pVal, confidence: 'high', source: 'manual' };
           } else if (field === 'company') {
             updated.company = { value: newValue || 'PW', confidence: 'high', source: 'manual' };
           } else if (field === 'quantity') {
-            const qVal = newValue?.value === '' || newValue?.value === null || isNaN(Number(newValue?.value))
-              ? null
-              : Number(newValue.value);
+            const qVal =
+              newValue?.value === '' || newValue?.value === null || isNaN(Number(newValue?.value))
+                ? null
+                : Number(newValue.value);
             updated.quantity = {
-              value: {
-                value: qVal,
-                unit: newValue?.unit || 'Nos',
-              },
+              value: { value: qVal, unit: newValue?.unit || 'Nos' },
               confidence: 'high',
               source: 'manual',
             };
           } else if (field === 'gst') {
-            const gVal = newValue?.rate === '' || newValue?.rate === null || isNaN(Number(newValue?.rate))
-              ? null
-              : Number(newValue.rate);
+            const gVal =
+              newValue?.rate === '' || newValue?.rate === null || isNaN(Number(newValue?.rate))
+                ? null
+                : Number(newValue.rate);
             updated.gst = {
               rate: gVal,
               isGSTInvoice: Boolean(newValue?.isGSTInvoice),
@@ -272,18 +278,21 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
     []
   );
 
+  // ---------------------------------------------------------------------------
+  // Delete: drafts removed immediately; saved records removed from localStorage
+  // ---------------------------------------------------------------------------
   const deleteMaterial = useCallback(
-    async (id: string) => {
+    (id: string) => {
       const isDraft = draftMaterials.some((m) => m.id === id);
       if (isDraft) {
         setDraftMaterials((prev) => prev.filter((m) => m.id !== id));
         return;
       }
-
-      await supabaseService.deletePurchase(id);
-      await refreshMaterials();
+      // Saved record
+      deletePurchase(id);
+      refreshSavedMaterials();
     },
-    [draftMaterials, refreshMaterials]
+    [draftMaterials, refreshSavedMaterials]
   );
 
   const duplicateMaterial = useCallback((id: string) => {
@@ -296,14 +305,17 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         sku: `CPY-${Date.now().toString().slice(-5)}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        status: 'draft',
       };
       return [clone, ...prev];
     });
   }, []);
 
-  // Move a material to Purchase History & Supabase
+  // ---------------------------------------------------------------------------
+  // Commit draft → saved purchase record (local storage)
+  // ---------------------------------------------------------------------------
   const commitToPurchases = useCallback(
-    async (materialId: string) => {
+    (materialId: string) => {
       const mat = draftMaterials.find((m) => m.id === materialId);
       if (!mat) return;
 
@@ -315,8 +327,8 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
       const netTotal = subTotal + gstAmount;
 
       const purchaseRecord: PurchaseRecord = {
-        id: `pur-${Date.now()}`,
-        date: new Date().toISOString().split('T')[0],
+        id: `pur-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+        date: mat.invoiceDate || new Date().toISOString().split('T')[0],
         item: mat.item.value,
         sku: mat.sku,
         vendor: mat.vendor.value || 'Unknown Vendor',
@@ -326,7 +338,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         unitPrice: priceVal,
         totalPrice: subTotal,
         gstRate: gstRateVal,
-        gstAmount: gstAmount,
+        gstAmount,
         netAmount: netTotal,
         isGSTInvoice: mat.gst.isGSTInvoice && mat.gst.rate !== null && mat.gst.rate > 0,
         photoUrl: mat.photoUrl,
@@ -335,36 +347,30 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         createdAt: new Date().toISOString(),
       };
 
-      // Save to Supabase and local purchases
-      const res = await supabaseService.addPurchase(purchaseRecord, mat);
+      const res = addPurchase(purchaseRecord);
       if (!res.success) {
-        alert(`Supabase Error: ${res.error || 'Failed to save record'}`);
+        alert(`Save Error: ${res.error || 'Failed to save record locally.'}`);
         return;
       }
 
-      // Remove from draft
+      // Remove from draft list
       setDraftMaterials((prev) => prev.filter((m) => m.id !== materialId));
-
-      await refreshMaterials();
+      refreshSavedMaterials();
       onPurchaseAdded?.(purchaseRecord);
 
-      // Trigger celebratory confetti
       try {
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.7 },
-        });
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
       } catch {
         // Ignore
       }
     },
-    [draftMaterials, onPurchaseAdded, refreshMaterials]
+    [draftMaterials, onPurchaseAdded, refreshSavedMaterials]
   );
 
-  const commitAllToPurchases = useCallback(async () => {
-    for (const mat of draftMaterials) {
-      await commitToPurchases(mat.id);
+  const commitAllToPurchases = useCallback(() => {
+    // Process synchronously (local storage is fast)
+    for (const mat of [...draftMaterials]) {
+      commitToPurchases(mat.id);
     }
   }, [draftMaterials, commitToPurchases]);
 
@@ -373,7 +379,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
     draftMaterials,
     savedMaterials,
     isLoading,
-    refreshMaterials,
+    refreshSavedMaterials,
     addMaterialFromRecognition,
     addManualMaterial,
     updateMaterialField,

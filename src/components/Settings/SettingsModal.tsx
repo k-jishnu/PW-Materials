@@ -102,7 +102,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 User Profile
               </h4>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, maxWidth: '360px', margin: 0 }}>
-                User profile management will be available here soon. AI recognition, Supabase cloud sync, and ledger storage are actively managed via system configuration.
+                User profile management will be available here soon. Currently running in <strong>local storage mode</strong> — all materials data is saved in this browser only. AI recognition is available when a valid API key is configured server-side.
               </p>
             </div>
           </div>

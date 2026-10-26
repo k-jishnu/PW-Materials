@@ -89,7 +89,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
       });
 
       if (res && typeof res === 'object' && res.success === false) {
-        setErrorMessage(res.error || 'Failed to save material to Supabase.');
+        setErrorMessage(res.error || 'Failed to save material. Please try again.');
         setIsSubmitting(false);
         return;
       }
@@ -519,7 +519,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
               {isSubmitting ? (
                 <>
                   <span className="animate-spin">⟳</span>
-                  <span>Saving to Supabase...</span>
+                  <span>Saving...</span>
                 </>
               ) : (
                 <>

@@ -137,18 +137,20 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
               <span>Add material</span>
             </button>
 
-            {materials.some((m) => m.status === 'draft') && (
-              <button
-                type="button"
-                onClick={onCommitAll}
-                className="btn btn-success btn-sm"
-                style={{ height: '36px' }}
-                title="Save all draft materials to Supabase"
-              >
-                <Check size={14} strokeWidth={2.5} />
-                <span>Save all drafts ({materials.filter((m) => m.status === 'draft').length})</span>
-              </button>
-            )}
+            {
+              materials.some((m) => m.status === 'draft') && (
+                <button
+                  type="button"
+                  onClick={onCommitAll}
+                  className="btn btn-success btn-sm"
+                  style={{ height: '36px' }}
+                  title="Confirm and save all drafts to local storage"
+                >
+                  <Check size={14} strokeWidth={2.5} />
+                  <span>Save all drafts ({materials.filter((m) => m.status === 'draft').length})</span>
+                </button>
+              )
+            }
           </div>
         )}
       </div>
@@ -494,7 +496,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                             <span
                               className="badge badge-success"
                               style={{ height: '28px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '0 8px' }}
-                              title="Saved in Supabase"
+                              title="Confirmed and saved locally"
                             >
                               <CheckCircle size={12} strokeWidth={2.5} />
                               <span>Saved</span>
@@ -505,7 +507,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                               onClick={() => onCommit(mat.id)}
                               className="btn btn-success btn-sm"
                               style={{ height: '30px', padding: '0 10px', fontSize: '12px' }}
-                              title="Save to Supabase & Purchases"
+                              title="Confirm and save to local storage"
                             >
                               <CheckCircle size={13} strokeWidth={2.5} />
                               <span>Save</span>

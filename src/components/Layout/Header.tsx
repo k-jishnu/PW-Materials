@@ -1,6 +1,6 @@
 // src/components/Layout/Header.tsx
 import React from 'react';
-import { Settings, Camera, Package, DownloadCloud, Database, Cloud } from 'lucide-react';
+import { Settings, Camera, Package, DownloadCloud, Database } from 'lucide-react';
 import { SupabaseConfig, GatewayConfig } from '@/types';
 import { ActiveTab } from './BottomNav';
 
@@ -159,9 +159,9 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </nav>
 
-        {/* Right Section: Storage status & Settings */}
+        {/* Right Section: Storage mode & Settings */}
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Subtle real storage indicator */}
+          {/* Phase 1: Always shows Local — no active DB connection */}
           <div
             className="storage-indicator"
             style={{
@@ -178,19 +178,10 @@ export const Header: React.FC<HeaderProps> = ({
               border: '2px solid var(--color-border)',
               boxShadow: 'var(--shadow-hard-xs)',
             }}
-            title={supabaseConfig.isConnected ? 'Connected to Supabase cloud' : 'Using browser local database storage'}
+            title="Phase 1: Data saved in this browser only (localStorage)"
           >
-            {supabaseConfig.isConnected ? (
-              <>
-                <Cloud size={13} color="var(--color-success)" strokeWidth={3} />
-                <span>Supabase</span>
-              </>
-            ) : (
-              <>
-                <Database size={13} color="#202020" strokeWidth={2.5} />
-                <span>Local DB</span>
-              </>
-            )}
+            <Database size={13} color="#202020" strokeWidth={2.5} />
+            <span>Local</span>
           </div>
 
           <button
