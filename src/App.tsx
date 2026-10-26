@@ -121,7 +121,7 @@ export const App: React.FC = () => {
   };
 
   const handleModalSubmit = async (items: ReviewItemData[]) => {
-    const res = confirmMaterials(items);
+    const res = await confirmMaterials(items);
     if (res.success) {
       // Refresh local purchases state
       setPurchases(getPurchases());

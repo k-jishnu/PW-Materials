@@ -15,6 +15,7 @@ import {
   deletePurchase,
   updatePurchase,
 } from '@/services/localDataService';
+import { savePhoto, deletePhoto } from '@/services/localPhotoStorage';
 import { ReviewItemData } from '@/components/MaterialsList/AddMaterialModal';
 import confetti from 'canvas-confetti';
 
@@ -59,8 +60,20 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
   // Confirm and save items from the Review Form (Single or Multi-item)
   // ---------------------------------------------------------------------------
   const confirmMaterials = useCallback(
-    (itemsData: ReviewItemData[]) => {
+    async (itemsData: ReviewItemData[]) => {
       const addedRecords: PurchaseRecord[] = [];
+
+      // Save photo to IndexedDB once if it's a data URL
+      let persistentPhotoRef: string | undefined = undefined;
+      const photoItem = itemsData.find((it) => it.photoUrl && it.photoUrl.startsWith('data:'));
+      if (photoItem && photoItem.photoUrl) {
+        const photoId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        try {
+          persistentPhotoRef = await savePhoto(photoId, photoItem.photoUrl);
+        } catch (e) {
+          console.warn('Failed to persist photo in IndexedDB:', e);
+        }
+      }
 
       for (const itemData of itemsData) {
         const numericPrice =
@@ -71,6 +84,12 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
           itemData.isGSTInvoice && typeof itemData.gstRate === 'number' && !isNaN(itemData.gstRate)
             ? itemData.gstRate
             : 0;
+
+        const effectivePhoto =
+          persistentPhotoRef ||
+          (itemData.photoUrl && itemData.photoUrl.startsWith('idb://photos/')
+            ? itemData.photoUrl
+            : undefined);
 
         const res = insertMaterial({
           name: itemData.item,
@@ -83,7 +102,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
           isGSTInvoice: itemData.isGSTInvoice,
           date: itemData.date,
           invoiceNumber: itemData.invoiceNumber,
-          photoUrl: itemData.photoUrl,
+          photoUrl: effectivePhoto,
           aiRecognized: true,
           confidenceAverage: itemData.confidenceScore ?? 0.95,
         });
@@ -200,10 +219,22 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
   );
 
   // ---------------------------------------------------------------------------
-  // Delete saved record
+  // Delete saved record (with safe photo cleanup)
   // ---------------------------------------------------------------------------
   const deleteMaterial = useCallback(
-    (id: string) => {
+    async (id: string) => {
+      const allPurchases = getPurchases();
+      const target = allPurchases.find((p) => p.id === id);
+      if (target?.photoUrl && target.photoUrl.startsWith('idb://photos/')) {
+        const isShared = allPurchases.some((p) => p.id !== id && p.photoUrl === target.photoUrl);
+        if (!isShared) {
+          try {
+            await deletePhoto(target.photoUrl);
+          } catch (e) {
+            console.warn('Error deleting photo from storage:', e);
+          }
+        }
+      }
       deletePurchase(id);
       refreshSavedMaterials();
     },

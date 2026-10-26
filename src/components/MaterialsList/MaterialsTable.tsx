@@ -13,7 +13,10 @@ import {
   Package,
   Search,
   Check,
+  Eye,
 } from 'lucide-react';
+import { PhotoThumbnail } from './PhotoThumbnail';
+import { PhotoPreviewModal } from './PhotoPreviewModal';
 
 interface MaterialsTableProps {
   materials: Material[];
@@ -38,6 +41,9 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
   const [viewMode, setViewMode] = useState<'card' | 'table'>(() => {
     return typeof window !== 'undefined' && window.innerWidth <= 768 ? 'card' : 'table';
   });
+
+  // Photo Preview Modal state
+  const [previewTarget, setPreviewTarget] = useState<Material | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [taxFilter, setTaxFilter] = useState<'all' | 'gst' | 'non-gst'>('all');
   const [sortField, setSortField] = useState<'item' | 'price' | 'vendor'>('item');
@@ -344,6 +350,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
               onDelete={onDelete}
               onDuplicate={onDuplicate}
               onUpdateField={onUpdateField}
+              onViewPhoto={(mat) => setPreviewTarget(mat)}
             />
           ))}
         </div>
@@ -389,6 +396,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
                 <thead>
                 <tr style={{ background: 'var(--color-logo-bg)', borderBottom: '2px solid var(--color-border)', fontSize: '13px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
+                  <th style={{ padding: '12px 10px', fontWeight: 700, textAlign: 'center', width: '56px' }}>Photo</th>
                   <th style={{ padding: '12px 14px', fontWeight: 700 }}>SKU</th>
                   <th
                     onClick={() => toggleSort('item')}
@@ -443,6 +451,15 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-card)')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
                     >
+                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        <PhotoThumbnail
+                          photoUrl={mat.photoUrl}
+                          alt={mat.item.value}
+                          size={32}
+                          onClick={() => setPreviewTarget(mat)}
+                        />
+                      </td>
+
                       <td className="mono" style={{ padding: '12px 14px', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 600 }}>
                         {mat.sku}
                       </td>
@@ -507,6 +524,16 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                           )}
                           <button
                             type="button"
+                            onClick={() => setPreviewTarget(mat)}
+                            className="btn-icon"
+                            style={{ width: '30px', height: '30px', color: mat.photoUrl ? '#202020' : '#94A3B8' }}
+                            title={mat.photoUrl ? 'View original photo / invoice' : 'No photo attached'}
+                            aria-label="View photo"
+                          >
+                            <Eye size={13} strokeWidth={2.2} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => onDelete(mat.id)}
                             className="btn-icon"
                             style={{ width: '30px', height: '30px', color: '#202020' }}
@@ -526,6 +553,17 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           )}
         </div>
       )}
+
+      {/* Full Photo & Document Preview Modal */}
+      <PhotoPreviewModal
+        isOpen={Boolean(previewTarget)}
+        onClose={() => setPreviewTarget(null)}
+        photoUrl={previewTarget?.photoUrl}
+        title={previewTarget?.item.value || 'Material Photo'}
+        sku={previewTarget?.sku}
+        vendor={previewTarget?.vendor.value}
+        date={previewTarget?.createdAt?.split('T')[0]}
+      />
     </section>
   );
 };

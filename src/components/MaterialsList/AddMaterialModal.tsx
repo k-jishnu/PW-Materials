@@ -12,7 +12,10 @@ import {
   FileText,
   AlertCircle,
   Package,
+  Eye,
 } from 'lucide-react';
+import { PhotoThumbnail } from './PhotoThumbnail';
+import { PhotoPreviewModal } from './PhotoPreviewModal';
 
 export interface ReviewItemData {
   item: string;
@@ -69,6 +72,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Initialize or reset form whenever modal opens or initialData changes
   useEffect(() => {
@@ -393,6 +397,50 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             boxSizing: 'border-box',
           }}
         >
+          {/* Attached Photo / Document Proof Bar */}
+          {(currentItem.photoUrl || initialData?.photoUrl) && (
+            <div
+              style={{
+                padding: '10px 14px',
+                background: 'var(--color-logo-bg)',
+                border: '2px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                boxShadow: '1.5px 1.5px 0 var(--color-border)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <PhotoThumbnail
+                  photoUrl={currentItem.photoUrl || initialData?.photoUrl}
+                  alt="Captured invoice / material"
+                  size={36}
+                  onClick={() => setIsPreviewOpen(true)}
+                />
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    Original Document / Photo Attached
+                  </span>
+                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    Inspect document proof to verify extracted quantities, vendor, and rates.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(true)}
+                className="btn btn-secondary btn-sm"
+                style={{ height: '32px', padding: '0 12px', fontSize: '12px', flexShrink: 0 }}
+              >
+                <Eye size={13} strokeWidth={2.2} />
+                <span>View proof</span>
+              </button>
+            </div>
+          )}
+
           {/* 1. Material Description / Name */}
           <div>
             <label
@@ -903,6 +951,16 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Photo & Document Proof Modal */}
+      <PhotoPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        photoUrl={currentItem.photoUrl || initialData?.photoUrl}
+        title={currentItem.item || 'Attached Document Proof'}
+        vendor={currentItem.vendor}
+        date={currentItem.date}
+      />
     </div>
   );
 };

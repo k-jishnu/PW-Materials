@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { Material } from '@/types';
 import { ConfidenceBadge } from './ConfidenceBadge';
-import { Edit3, Copy, Trash2, Check, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Edit3, Copy, Trash2, Check, ArrowRight, ShieldCheck, Eye } from 'lucide-react';
+import { PhotoThumbnail } from './PhotoThumbnail';
 
 interface MaterialCardProps {
   material: Material;
@@ -10,6 +11,7 @@ interface MaterialCardProps {
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
   onUpdateField: (id: string, field: any, value: any) => void;
+  onViewPhoto?: (material: Material) => void;
 }
 
 export const MaterialCard: React.FC<MaterialCardProps> = ({
@@ -18,6 +20,7 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
   onDelete,
   onDuplicate,
   onUpdateField,
+  onViewPhoto,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editItem, setEditItem] = useState(material.item.value);
@@ -94,23 +97,12 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
           )}
         </div>
 
-        {material.photoUrl && (
-          <div style={{
-            width: '34px',
-            height: '34px',
-            borderRadius: 'var(--radius-sm)',
-            overflow: 'hidden',
-            border: '2px solid var(--color-border)',
-            boxShadow: '1.5px 1.5px 0 var(--color-border)',
-            background: 'var(--bg-surface-subtle)',
-          }}>
-            <img
-              src={material.photoUrl}
-              alt={material.item.value}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          </div>
-        )}
+        <PhotoThumbnail
+          photoUrl={material.photoUrl}
+          alt={material.item.value}
+          size={36}
+          onClick={() => onViewPhoto?.(material)}
+        />
       </div>
 
       {isEditing ? (
@@ -338,6 +330,17 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
             )}
 
             <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                type="button"
+                onClick={() => onViewPhoto?.(material)}
+                className="btn-icon"
+                style={{ width: '36px', height: '36px', color: material.photoUrl ? '#202020' : '#94A3B8' }}
+                title={material.photoUrl ? 'View original photo / invoice' : 'No photo attached'}
+                aria-label="View photo"
+              >
+                <Eye size={15} strokeWidth={2.2} />
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
