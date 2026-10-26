@@ -122,8 +122,8 @@ export class GatewayAPI {
         confidence: gstRateVal !== null ? 0.9 : 0.0,
       },
       company: {
-        name: 'PW',
-        confidence: 1.0,
+        name: structured.company_ref || '',
+        confidence: structured.company_ref ? 0.95 : 0.0,
       },
       quantity: {
         value: quantityVal,

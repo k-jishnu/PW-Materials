@@ -106,6 +106,7 @@ export interface PurchaseRecord {
   aiRecognized: boolean;
   confidenceAverage: number;
   createdAt: string;
+  invoiceNumber?: string;
 }
 
 // Normalized Database Entities

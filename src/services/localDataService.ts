@@ -87,53 +87,63 @@ export function addPurchase(
  */
 export function insertMaterial(materialData: {
   name: string;
-  vendor: string;
+  vendor?: string;
   company?: string;
-  price: number;
-  quantity: number;
+  price?: number;
+  quantity?: number;
   unit?: string;
   gstRate?: number;
   isGSTInvoice?: boolean;
+  date?: string;
+  invoiceNumber?: string;
+  photoUrl?: string;
+  aiRecognized?: boolean;
+  confidenceAverage?: number;
 }): { success: boolean; data?: PurchaseRecord; error?: string } {
   // --- Field validation ---
   if (!materialData.name || !materialData.name.trim()) {
     return { success: false, error: 'Material Description / Name is required.' };
   }
-  if (!materialData.vendor || !materialData.vendor.trim()) {
-    return { success: false, error: 'Supplier / Vendor is required.' };
-  }
-  if (materialData.price < 0) {
+  if (typeof materialData.price === 'number' && materialData.price < 0) {
     return { success: false, error: 'Price cannot be negative.' };
   }
-  if (materialData.quantity <= 0) {
-    return { success: false, error: 'Quantity must be greater than zero.' };
+  if (typeof materialData.quantity === 'number' && materialData.quantity < 0) {
+    return { success: false, error: 'Quantity cannot be negative.' };
   }
 
-  const sku = `MAN-${Date.now().toString().slice(-6)}`;
+  const sku = materialData.aiRecognized
+    ? `SWC-${Date.now().toString().slice(-6)}`
+    : `MAN-${Date.now().toString().slice(-6)}`;
   const isGST = Boolean(materialData.isGSTInvoice);
   const rate = isGST ? Number(materialData.gstRate ?? 18) : 0;
-  const subTotal = materialData.price * materialData.quantity;
+  const unitPrice = typeof materialData.price === 'number' && !isNaN(materialData.price) ? Math.max(0, materialData.price) : 0;
+  const quantity = typeof materialData.quantity === 'number' && !isNaN(materialData.quantity) && materialData.quantity > 0
+    ? materialData.quantity
+    : (unitPrice > 0 ? 1 : 0);
+  const subTotal = unitPrice * quantity;
   const gstAmount = (subTotal * rate) / 100;
   const netAmount = subTotal + gstAmount;
 
   const record: PurchaseRecord = {
     id: `pur-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    date: new Date().toISOString().split('T')[0],
+    date: materialData.date || new Date().toISOString().split('T')[0],
     item: materialData.name.trim(),
     sku,
-    vendor: materialData.vendor.trim(),
+    vendor: materialData.vendor?.trim() || '',
     company: materialData.company?.trim() || 'PW',
-    quantity: materialData.quantity,
+    quantity: typeof materialData.quantity === 'number' && !isNaN(materialData.quantity) ? materialData.quantity : quantity,
     unit: materialData.unit || "no's",
-    unitPrice: materialData.price,
+    unitPrice,
     totalPrice: subTotal,
     gstRate: rate,
     gstAmount,
     netAmount,
     isGSTInvoice: isGST,
-    aiRecognized: false,
-    confidenceAverage: 1.0,
+    photoUrl: materialData.photoUrl,
+    aiRecognized: Boolean(materialData.aiRecognized),
+    confidenceAverage: materialData.confidenceAverage ?? (materialData.aiRecognized ? 0.95 : 1.0),
     createdAt: new Date().toISOString(),
+    invoiceNumber: materialData.invoiceNumber?.trim() || undefined,
   };
 
   const result = addPurchase(record);
@@ -167,6 +177,13 @@ export function updatePurchase(
   } catch (err: any) {
     return { success: false, error: err?.message ?? 'Update failed.' };
   }
+}
+
+/**
+ * Clear all purchases from local storage (useful for tests and reset).
+ */
+export function clearAllPurchases(): void {
+  saveToStorage(LOCAL_PURCHASES_KEY, []);
 }
 
 // ---------------------------------------------------------------------------

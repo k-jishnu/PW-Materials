@@ -1,100 +1,208 @@
-import React, { useState } from 'react';
-import { X, Plus, Minus, Check, ChevronDown } from 'lucide-react';
+// src/components/MaterialsList/AddMaterialModal.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Plus,
+  Minus,
+  Check,
+  ChevronDown,
+  Sparkles,
+  Calendar,
+  Building,
+  FileText,
+  AlertCircle,
+  Package,
+} from 'lucide-react';
+
+export interface ReviewItemData {
+  item: string;
+  vendor: string;
+  price: number | '';
+  company: string;
+  qtyValue: number | '';
+  qtyUnit: string;
+  gstRate: number | '';
+  isGSTInvoice: boolean;
+  date: string;
+  invoiceNumber: string;
+  photoUrl?: string;
+  confidenceScore?: number;
+}
+
+export interface ModalInitialData {
+  items: ReviewItemData[];
+  source: 'ai' | 'manual';
+  photoUrl?: string;
+}
 
 interface AddMaterialModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (data: {
-    item: string;
-    vendor: string;
-    price: number;
-    company: string;
-    qtyValue: number;
-    qtyUnit: string;
-    gstRate: number;
-    isGSTInvoice: boolean;
-  }) => Promise<{ success: boolean; error?: string } | void> | void;
+  onAdd: (items: ReviewItemData[]) => Promise<{ success: boolean; error?: string } | void> | { success: boolean; error?: string } | void;
+  initialData?: ModalInitialData | null;
 }
+
+const SUPPORTED_UNITS = [
+  "no's",
+  "kg's",
+  'pieces',
+  'meters',
+  'bundles',
+  'bags',
+  'tons',
+  'rolls',
+  'sets',
+  'sq ft',
+  'brass',
+  'litres',
+];
 
 export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
   isOpen,
   onClose,
   onAdd,
+  initialData,
 }) => {
-  const [item, setItem] = useState('');
-  const [vendor, setVendor] = useState('');
-  const [price, setPrice] = useState<number | ''>('');
-  const company = 'PW'; // Kept internally for database consistency
-  const [qtyValue, setQtyValue] = useState<number | ''>(1);
-  const [qtyUnit, setQtyUnit] = useState<string>("no's");
-  const [isGSTInvoice, setIsGSTInvoice] = useState(true);
+  const isAIMode = initialData?.source === 'ai';
+
+  const [items, setItems] = useState<ReviewItemData[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Initialize or reset form whenever modal opens or initialData changes
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData?.items && initialData.items.length > 0) {
+        setItems(
+          initialData.items.map((it) => ({
+            item: it.item || '',
+            vendor: it.vendor || '',
+            price: typeof it.price === 'number' && !isNaN(it.price) ? it.price : '',
+            company: it.company || 'PW',
+            qtyValue: typeof it.qtyValue === 'number' && !isNaN(it.qtyValue) ? it.qtyValue : '',
+            qtyUnit: it.qtyUnit || "no's",
+            gstRate: typeof it.gstRate === 'number' && !isNaN(it.gstRate) ? it.gstRate : 18,
+            isGSTInvoice: it.isGSTInvoice ?? true,
+            date: it.date || new Date().toISOString().split('T')[0],
+            invoiceNumber: it.invoiceNumber || '',
+            photoUrl: it.photoUrl || initialData.photoUrl || '',
+            confidenceScore: it.confidenceScore,
+          }))
+        );
+        setActiveIndex(0);
+      } else {
+        setItems([
+          {
+            item: '',
+            vendor: '',
+            price: '',
+            company: 'PW',
+            qtyValue: '',
+            qtyUnit: "no's",
+            gstRate: 18,
+            isGSTInvoice: true,
+            date: new Date().toISOString().split('T')[0],
+            invoiceNumber: '',
+          },
+        ]);
+        setActiveIndex(0);
+      }
+      setErrorMessage(null);
+      setIsSubmitting(false);
+    }
+  }, [isOpen, initialData]);
+
   if (!isOpen) return null;
 
+  const currentItem: ReviewItemData = items[activeIndex] || {
+    item: '',
+    vendor: '',
+    price: '',
+    company: 'PW',
+    qtyValue: '',
+    qtyUnit: "no's",
+    gstRate: 18,
+    isGSTInvoice: true,
+    date: new Date().toISOString().split('T')[0],
+    invoiceNumber: '',
+  };
+
+  const updateCurrentItem = (updates: Partial<ReviewItemData>) => {
+    setItems((prev) => {
+      const next = [...prev];
+      if (next[activeIndex]) {
+        next[activeIndex] = { ...next[activeIndex], ...updates };
+      }
+      return next;
+    });
+  };
+
   const handleClose = () => {
-    setItem('');
-    setVendor('');
-    setPrice('');
-    setQtyValue(1);
-    setQtyUnit("no's");
-    setIsGSTInvoice(true);
+    if (isSubmitting) return;
     setErrorMessage(null);
     onClose();
   };
 
   const handleDecreaseQty = () => {
-    const current = typeof qtyValue === 'number' && !isNaN(qtyValue) ? qtyValue : 1;
-    setQtyValue(Math.max(1, Math.round(current) - 1));
+    const current = typeof currentItem.qtyValue === 'number' && !isNaN(currentItem.qtyValue) ? currentItem.qtyValue : 1;
+    const nextVal = Math.max(1, Math.round(current) - 1);
+    updateCurrentItem({ qtyValue: nextVal });
   };
 
   const handleIncreaseQty = () => {
-    const current = typeof qtyValue === 'number' && !isNaN(qtyValue) ? qtyValue : 0;
-    setQtyValue(Math.max(1, Math.round(current) + 1));
+    const current = typeof currentItem.qtyValue === 'number' && !isNaN(currentItem.qtyValue) ? currentItem.qtyValue : 0;
+    const nextVal = Math.max(1, Math.round(current) + 1);
+    updateCurrentItem({ qtyValue: nextVal });
   };
+
+  // Dynamic calculations for active item
+  const numericPrice = typeof currentItem.price === 'number' && !isNaN(currentItem.price) ? currentItem.price : 0;
+  const numericQty = typeof currentItem.qtyValue === 'number' && !isNaN(currentItem.qtyValue) ? currentItem.qtyValue : 0;
+  const subtotal = numericPrice * numericQty;
+  const numericGstRate =
+    currentItem.isGSTInvoice && typeof currentItem.gstRate === 'number' && !isNaN(currentItem.gstRate)
+      ? currentItem.gstRate
+      : 0;
+  const gstAmount = currentItem.isGSTInvoice ? (subtotal * numericGstRate) / 100 : 0;
+  const netTotal = subtotal + gstAmount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setErrorMessage(null);
 
-    if (!item.trim()) {
-      setErrorMessage('Material Description / Name is required.');
-      return;
-    }
-    if (!vendor.trim()) {
-      setErrorMessage('Supplier / Vendor is required.');
-      return;
-    }
-    if (price === '' || Number(price) < 0) {
-      setErrorMessage('Valid unit price is required (0 or greater).');
-      return;
-    }
-    if (qtyValue === '' || Number(qtyValue) < 1) {
-      setErrorMessage('Quantity must be at least 1.');
-      return;
+    // Validate that each item has a material description
+    for (let i = 0; i < items.length; i++) {
+      if (!items[i].item.trim()) {
+        setActiveIndex(i);
+        setErrorMessage(
+          items.length > 1
+            ? `Item #${i + 1} is missing Material Description / Name.`
+            : 'Material Description / Name is required.'
+        );
+        return;
+      }
+      if (typeof items[i].price === 'number' && (items[i].price as number) < 0) {
+        setActiveIndex(i);
+        setErrorMessage(`Item #${i + 1} has an invalid negative unit price.`);
+        return;
+      }
+      if (typeof items[i].qtyValue === 'number' && (items[i].qtyValue as number) < 0) {
+        setActiveIndex(i);
+        setErrorMessage(`Item #${i + 1} has an invalid negative quantity.`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
     try {
-      const res = await onAdd({
-        item: item.trim(),
-        vendor: vendor.trim(),
-        price: Number(price) || 0,
-        company: company || 'PW',
-        qtyValue: Number(qtyValue) || 1,
-        qtyUnit: qtyUnit.trim() || "no's",
-        gstRate: isGSTInvoice ? 18 : 0,
-        isGSTInvoice,
-      });
-
+      const res = await onAdd(items);
       if (res && typeof res === 'object' && res.success === false) {
         setErrorMessage(res.error || 'Failed to save material. Please try again.');
         setIsSubmitting(false);
         return;
       }
-
       handleClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error adding material.';
@@ -103,12 +211,20 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
     }
   };
 
+  const fieldHintStyle: React.CSSProperties = {
+    fontSize: '11px',
+    color: '#64748B',
+    marginTop: '3px',
+    display: 'block',
+    fontWeight: 500,
+  };
+
   return (
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(32, 32, 32, 0.55)',
+        backgroundColor: 'rgba(32, 32, 32, 0.65)',
         backdropFilter: 'blur(3px)',
         display: 'flex',
         alignItems: 'center',
@@ -126,11 +242,14 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
           background: 'var(--bg-surface)',
           borderRadius: 'var(--radius-lg)',
           width: '100%',
-          maxWidth: '500px',
+          maxWidth: '560px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
           boxShadow: 'var(--shadow-hard-lg)',
-          overflow: 'hidden',
           border: '2.5px solid var(--color-border)',
           boxSizing: 'border-box',
+          overflow: 'hidden',
         }}
       >
         {/* Header */}
@@ -142,49 +261,126 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--bg-surface-subtle)',
+            flexShrink: 0,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '32px',
-                height: '32px',
+                width: '34px',
+                height: '34px',
                 borderRadius: 'var(--radius-sm)',
-                background: 'var(--color-logo-bg)',
+                background: isAIMode ? 'var(--color-yellow)' : 'var(--color-logo-bg)',
                 border: '2px solid var(--color-border)',
                 boxShadow: 'var(--shadow-hard-xs)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#202020',
+                flexShrink: 0,
               }}
             >
-              <Plus size={18} strokeWidth={2.5} />
+              {isAIMode ? <Sparkles size={18} strokeWidth={2.5} /> : <Plus size={18} strokeWidth={2.5} />}
             </div>
-            <h3
-              style={{
-                margin: 0,
-                fontSize: '18px',
-                fontWeight: 900,
-                color: 'var(--text-primary)',
-                fontFamily: 'var(--font-serif)',
-              }}
-            >
-              Add material
-            </h3>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: '18px',
+                    fontWeight: 900,
+                    color: 'var(--text-primary)',
+                    fontFamily: 'var(--font-serif)',
+                  }}
+                >
+                  {isAIMode
+                    ? items.length > 1
+                      ? `Review invoice materials (${items.length} items)`
+                      : 'Review material'
+                    : 'Add material'}
+                </h3>
+                {isAIMode && (
+                  <span
+                    className="badge badge-warning"
+                    style={{
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      background: 'var(--color-butter-yellow)',
+                      color: '#202020',
+                    }}
+                  >
+                    AI Extracted · Review
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                {isAIMode
+                  ? 'Inspect and edit extracted fields before confirming to save.'
+                  : 'Enter purchase details manually.'}
+              </p>
+            </div>
           </div>
+
           <button
             type="button"
             onClick={handleClose}
             className="btn-icon"
-            style={{ width: '32px', height: '32px' }}
+            style={{ width: '32px', height: '32px', flexShrink: 0 }}
             aria-label="Close"
           >
             <X size={16} strokeWidth={2.5} />
           </button>
         </div>
 
-        {/* Form Body */}
+        {/* Multi-item switcher strip when more than 1 item was extracted */}
+        {items.length > 1 && (
+          <div
+            style={{
+              padding: '10px 16px',
+              background: 'var(--bg-card)',
+              borderBottom: '2px solid var(--color-border)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              overflowX: 'auto',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginRight: '4px', whiteSpace: 'nowrap' }}>
+              Line Items:
+            </span>
+            {items.map((it, idx) => {
+              const isSelected = idx === activeIndex;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setActiveIndex(idx)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1.5px solid var(--color-border)',
+                    background: isSelected ? 'var(--color-primary-selected)' : 'var(--bg-surface)',
+                    color: '#202020',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: isSelected ? 'var(--shadow-hard-xs)' : 'none',
+                    whiteSpace: 'nowrap',
+                    maxWidth: '160px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={it.item || `Item ${idx + 1}`}
+                >
+                  #{idx + 1} {it.item || 'Unspecified'}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Scrollable Form Body */}
         <form
           onSubmit={handleSubmit}
           style={{
@@ -192,6 +388,8 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             display: 'flex',
             flexDirection: 'column',
             gap: '14px',
+            overflowY: 'auto',
+            flex: 1,
             boxSizing: 'border-box',
           }}
         >
@@ -203,43 +401,74 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 fontWeight: 600,
                 color: 'var(--text-primary)',
                 display: 'block',
-                marginBottom: '6px',
+                marginBottom: '4px',
               }}
             >
-              Material Description / Name <span style={{ color: '#EF4444', fontWeight: 700 }} aria-hidden="true">*</span>
+              Material Description / Name <span style={{ color: '#EF4444', fontWeight: 700 }}>*</span>
             </label>
             <input
               type="text"
               required
               placeholder="e.g. 12mm TMT Steel Rebar Fe550"
-              value={item}
-              onChange={(e) => setItem(e.target.value)}
+              value={currentItem.item}
+              onChange={(e) => updateCurrentItem({ item: e.target.value })}
               className="input-base"
               autoFocus
             />
+            {isAIMode && !currentItem.item.trim() && (
+              <span style={fieldHintStyle}>Not detected — enter material name</span>
+            )}
           </div>
 
-          {/* 2. Supplier / Vendor */}
-          <div>
-            <label
-              style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                display: 'block',
-                marginBottom: '6px',
-              }}
-            >
-              Supplier / Vendor <span style={{ color: '#EF4444', fontWeight: 700 }} aria-hidden="true">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. ABC Steel Corp"
-              value={vendor}
-              onChange={(e) => setVendor(e.target.value)}
-              className="input-base"
-            />
+          {/* 2. Supplier / Vendor & Material Brand */}
+          <div className="modal-grid-2col">
+            <div>
+              <label
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  display: 'block',
+                  marginBottom: '4px',
+                }}
+              >
+                Supplier / Vendor
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. ABC Steel Corp"
+                value={currentItem.vendor}
+                onChange={(e) => updateCurrentItem({ vendor: e.target.value })}
+                className="input-base"
+              />
+              {isAIMode && !currentItem.vendor.trim() && (
+                <span style={fieldHintStyle}>Not detected — enter manually</span>
+              )}
+            </div>
+
+            <div>
+              <label
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  display: 'block',
+                  marginBottom: '4px',
+                }}
+              >
+                Material Brand / Company
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Tata Tiscon / UltraTech / PW"
+                value={currentItem.company}
+                onChange={(e) => updateCurrentItem({ company: e.target.value })}
+                className="input-base"
+              />
+              {isAIMode && (!currentItem.company.trim() || currentItem.company === 'PW') && (
+                <span style={fieldHintStyle}>e.g. UltraTech, Tata, or PW</span>
+              )}
+            </div>
           </div>
 
           {/* 3. Unit Price & Quantity/Unit Row */}
@@ -252,25 +481,28 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                   fontWeight: 600,
                   color: 'var(--text-primary)',
                   display: 'block',
-                  marginBottom: '6px',
+                  marginBottom: '4px',
                 }}
               >
-                Unit Price (₹) <span style={{ color: '#EF4444', fontWeight: 700 }} aria-hidden="true">*</span>
+                Unit Price (₹ Rate)
               </label>
               <input
                 type="number"
-                required
                 min="0"
                 step="any"
                 placeholder="₹ Rate"
-                value={price}
-                onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                value={currentItem.price}
+                onChange={(e) =>
+                  updateCurrentItem({
+                    price: e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0),
+                  })
+                }
                 className="input-base"
-                style={{
-                  height: '40px',
-                  boxShadow: 'var(--shadow-hard-xs)',
-                }}
+                style={{ height: '40px', boxShadow: 'var(--shadow-hard-xs)' }}
               />
+              {isAIMode && currentItem.price === '' && (
+                <span style={fieldHintStyle}>Not detected — enter unit rate</span>
+              )}
             </div>
 
             {/* Quantity and Unit Controls */}
@@ -281,12 +513,11 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                   fontWeight: 600,
                   color: 'var(--text-primary)',
                   display: 'block',
-                  marginBottom: '6px',
+                  marginBottom: '4px',
                 }}
               >
                 Quantity &amp; Unit
               </label>
-              {/* Order: [ − ] [ quantity ] [ + ] [ unit dropdown ] */}
               <div
                 style={{
                   display: 'flex',
@@ -300,7 +531,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 <button
                   type="button"
                   onClick={handleDecreaseQty}
-                  disabled={typeof qtyValue === 'number' && qtyValue <= 1}
+                  disabled={typeof currentItem.qtyValue === 'number' && currentItem.qtyValue <= 1}
                   aria-label="Decrease quantity"
                   title="Decrease quantity by 1"
                   style={{
@@ -313,10 +544,12 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    cursor: typeof qtyValue === 'number' && qtyValue <= 1 ? 'not-allowed' : 'pointer',
-                    opacity: typeof qtyValue === 'number' && qtyValue <= 1 ? 0.45 : 1,
+                    cursor:
+                      typeof currentItem.qtyValue === 'number' && currentItem.qtyValue <= 1
+                        ? 'not-allowed'
+                        : 'pointer',
+                    opacity: typeof currentItem.qtyValue === 'number' && currentItem.qtyValue <= 1 ? 0.45 : 1,
                     flexShrink: 0,
-                    transition: 'transform 0.1s ease, box-shadow 0.1s ease',
                   }}
                 >
                   <Minus size={15} strokeWidth={2.5} />
@@ -325,22 +558,18 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 {/* [ quantity ] input */}
                 <input
                   type="number"
-                  min="1"
+                  min="0"
                   step="any"
-                  value={qtyValue}
+                  placeholder="Qty"
+                  value={currentItem.qtyValue}
                   aria-label="Quantity"
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === '') {
-                      setQtyValue('');
+                      updateCurrentItem({ qtyValue: '' });
                     } else {
                       const num = parseFloat(val);
-                      setQtyValue(isNaN(num) ? '' : num);
-                    }
-                  }}
-                  onBlur={() => {
-                    if (qtyValue === '' || Number(qtyValue) < 1) {
-                      setQtyValue(1);
+                      updateCurrentItem({ qtyValue: isNaN(num) ? '' : num });
                     }
                   }}
                   className="input-base"
@@ -374,7 +603,6 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                     justifyContent: 'center',
                     cursor: 'pointer',
                     flexShrink: 0,
-                    transition: 'transform 0.1s ease, box-shadow 0.1s ease',
                   }}
                 >
                   <Plus size={15} strokeWidth={2.5} />
@@ -383,8 +611,8 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 {/* [ unit dropdown ] */}
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   <select
-                    value={qtyUnit}
-                    onChange={(e) => setQtyUnit(e.target.value)}
+                    value={currentItem.qtyUnit}
+                    onChange={(e) => updateCurrentItem({ qtyUnit: e.target.value })}
                     aria-label="Unit of measurement"
                     style={{
                       appearance: 'none',
@@ -405,8 +633,11 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                       boxSizing: 'border-box',
                     }}
                   >
-                    <option value="no's">no's</option>
-                    <option value="kg's">kg's</option>
+                    {SUPPORTED_UNITS.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
                   </select>
                   <div
                     style={{
@@ -424,10 +655,62 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                   </div>
                 </div>
               </div>
+              {isAIMode && currentItem.qtyValue === '' && (
+                <span style={fieldHintStyle}>Not detected — enter quantity</span>
+              )}
             </div>
           </div>
 
-          {/* 4. GST Tax Invoice (Single Compact Row: Fixed 18%) */}
+          {/* 4. Purchase Date & Invoice Number Row */}
+          <div className="modal-grid-2col">
+            <div>
+              <label
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  display: 'block',
+                  marginBottom: '4px',
+                }}
+              >
+                Purchase / Invoice Date
+              </label>
+              <input
+                type="date"
+                value={currentItem.date}
+                onChange={(e) => updateCurrentItem({ date: e.target.value })}
+                className="input-base"
+                style={{ height: '40px' }}
+              />
+            </div>
+
+            <div>
+              <label
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  display: 'block',
+                  marginBottom: '4px',
+                }}
+              >
+                Invoice / Bill Number
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. INV-2026-001"
+                value={currentItem.invoiceNumber}
+                onChange={(e) => updateCurrentItem({ invoiceNumber: e.target.value })}
+                className="input-base"
+                style={{ height: '40px' }}
+              />
+              {isAIMode && !currentItem.invoiceNumber.trim() && (
+                <span style={fieldHintStyle}>Not detected / optional</span>
+              )}
+            </div>
+          </div>
+
+          {/* 5. GST Tax Invoice & Rate Row */}
           <div
             style={{
               background: 'var(--bg-surface-subtle)',
@@ -437,6 +720,9 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
               boxShadow: 'var(--shadow-hard-xs)',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px',
               boxSizing: 'border-box',
             }}
           >
@@ -450,13 +736,12 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 fontWeight: 600,
                 color: 'var(--text-primary)',
                 userSelect: 'none',
-                width: '100%',
               }}
             >
               <input
                 type="checkbox"
-                checked={isGSTInvoice}
-                onChange={(e) => setIsGSTInvoice(e.target.checked)}
+                checked={currentItem.isGSTInvoice}
+                onChange={(e) => updateCurrentItem({ isGSTInvoice: e.target.checked })}
                 style={{
                   width: '18px',
                   height: '18px',
@@ -465,18 +750,98 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 }}
               />
               <span>Is GST Tax Invoice</span>
-              {isGSTInvoice && (
-                <span
+            </label>
+
+            {currentItem.isGSTInvoice && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  Rate (%):
+                </span>
+                <select
+                  value={currentItem.gstRate}
+                  onChange={(e) =>
+                    updateCurrentItem({
+                      gstRate: e.target.value === '' ? '' : Number(e.target.value),
+                    })
+                  }
                   style={{
+                    height: '34px',
+                    padding: '0 8px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1.5px solid var(--color-border)',
+                    background: 'var(--bg-surface)',
+                    fontSize: '13px',
                     fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    fontFamily: 'var(--font-serif)',
+                    outline: 'none',
+                    cursor: 'pointer',
                   }}
                 >
-                  : 18%
+                  <option value={18}>18%</option>
+                  <option value={28}>28%</option>
+                  <option value={12}>12%</option>
+                  <option value={5}>5%</option>
+                  <option value={0}>0%</option>
+                </select>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  (+₹{gstAmount.toLocaleString('en-IN')})
                 </span>
-              )}
-            </label>
+              </div>
+            )}
+          </div>
+
+          {/* 6. Dynamic Total Amount Calculation Card */}
+          <div
+            style={{
+              background: 'var(--bg-card)',
+              border: '2px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-hard-xs)',
+              padding: '12px 14px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              boxSizing: 'border-box',
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Calculated Total
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Subtotal: ₹{subtotal.toLocaleString('en-IN')}{' '}
+                {currentItem.isGSTInvoice
+                  ? `+ GST (${numericGstRate}%): ₹${gstAmount.toLocaleString('en-IN')}`
+                  : '(Tax Exempt)'}
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
+              <div
+                style={{
+                  fontSize: '20px',
+                  fontWeight: 900,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-serif)',
+                }}
+              >
+                {currentItem.price !== '' && currentItem.qtyValue !== ''
+                  ? `₹${netTotal.toLocaleString('en-IN')}`
+                  : '₹--'}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                {currentItem.price !== '' && currentItem.qtyValue !== ''
+                  ? 'Net Total'
+                  : 'Enter price & quantity'}
+              </div>
+            </div>
           </div>
 
           {/* Error Message */}
@@ -495,7 +860,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 gap: '8px',
               }}
             >
-              <span>⚠️</span>
+              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0 }} />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -507,7 +872,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
               onClick={handleClose}
               disabled={isSubmitting}
               className="btn btn-secondary"
-              style={{ flex: 1 }}
+              style={{ flex: 1, height: '42px' }}
             >
               Cancel
             </button>
@@ -515,7 +880,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
               type="submit"
               disabled={isSubmitting}
               className="btn btn-primary"
-              style={{ flex: 1, opacity: isSubmitting ? 0.7 : 1 }}
+              style={{ flex: 1, height: '42px', opacity: isSubmitting ? 0.7 : 1 }}
             >
               {isSubmitting ? (
                 <>
@@ -525,7 +890,13 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
               ) : (
                 <>
                   <Check size={16} strokeWidth={2.5} />
-                  <span>Add material</span>
+                  <span>
+                    {isAIMode
+                      ? items.length > 1
+                        ? `Confirm all ${items.length} items`
+                        : 'Confirm & save material'
+                      : 'Add material'}
+                  </span>
                 </>
               )}
             </button>

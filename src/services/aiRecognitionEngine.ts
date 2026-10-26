@@ -19,7 +19,7 @@ export interface StructuredRecognitionResult {
   vendor: string | null;
   quantity: number | null;
   gst_tax: number | null;
-  company_ref: string;
+  company_ref: string | null;
   supplier_name: string | null;
   invoice_number: string | null;
   invoice_date: string | null;
@@ -151,7 +151,7 @@ export function validateAndNormalizeRecognition(rawJson: any): StructuredRecogni
   const vendor = cleanStringOrNull(rawJson.vendor) || cleanStringOrNull(rawJson.supplier_name);
   const quantity = cleanNumberOrNull(rawJson.quantity !== undefined ? rawJson.quantity : rawJson.line_items?.[0]?.quantity);
   const gst_tax = cleanNumberOrNull(rawJson.gst_tax);
-  const company_ref = 'PW'; // Fixed application default
+  const company_ref = cleanStringOrNull(rawJson.company_ref) || cleanStringOrNull(rawJson.company) || null;
 
   const supplier_name = cleanStringOrNull(rawJson.supplier_name) || vendor;
   const invoice_number = cleanStringOrNull(rawJson.invoice_number);

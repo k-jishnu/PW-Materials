@@ -3,7 +3,6 @@ import React, { useState, useMemo } from 'react';
 import { Material } from '@/types';
 import { MaterialCard } from './MaterialCard';
 import { ConfidenceBadge } from './ConfidenceBadge';
-import { AddMaterialModal } from './AddMaterialModal';
 import {
   Plus,
   ArrowUpDown,
@@ -18,28 +17,27 @@ import {
 
 interface MaterialsTableProps {
   materials: Material[];
-  onCommit: (id: string) => void;
-  onCommitAll: () => void;
+  onCommit?: (id: string) => void;
+  onCommitAll?: () => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
   onUpdateField: (id: string, field: any, value: any) => void;
-  onAddManual: (data: any) => void;
+  onOpenAdd: () => void;
 }
 
 export const MaterialsTable: React.FC<MaterialsTableProps> = ({
   materials,
-  onCommit,
+  onCommit = () => {},
   onCommitAll,
   onDelete,
   onDuplicate,
   onUpdateField,
-  onAddManual,
+  onOpenAdd,
 }) => {
   // Default to card view on mobile, table view on desktop
   const [viewMode, setViewMode] = useState<'card' | 'table'>(() => {
     return typeof window !== 'undefined' && window.innerWidth <= 768 ? 'card' : 'table';
   });
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [taxFilter, setTaxFilter] = useState<'all' | 'gst' | 'non-gst'>('all');
   const [sortField, setSortField] = useState<'item' | 'price' | 'vendor'>('item');
@@ -93,12 +91,6 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-      <AddMaterialModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onAdd={onAddManual}
-      />
-
       {/* Section Header */}
       <div style={{
         display: 'flex',
@@ -129,7 +121,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => setIsAddModalOpen(true)}
+              onClick={onOpenAdd}
               className="btn btn-primary btn-sm"
               style={{ height: '36px' }}
             >
@@ -324,7 +316,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={onOpenAdd}
             className="btn btn-primary"
             style={{ height: '40px', padding: '0 20px', marginTop: '6px' }}
           >
