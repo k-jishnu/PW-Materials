@@ -24,21 +24,31 @@ export class ResilientGatewayAPI {
   public async recognizeWithRetry(
     imageBase64: string,
     config: Partial<RetryConfig> = {},
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number, stage?: string, message?: string) => void,
+    signal?: AbortSignal
   ): Promise<MaterialRecognitionResult> {
     const finalConfig = { ...this.defaultConfig, ...config };
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= finalConfig.maxRetries; attempt++) {
+      if (signal?.aborted) {
+        throw new Error('Recognition was cancelled.');
+      }
+
       try {
         if (attempt > 0) {
           console.log(`[ResilientGateway] Retry attempt ${attempt + 1}/${finalConfig.maxRetries + 1}`);
         }
-        const result = await gatewayAPI.recognizeMaterial(imageBase64, onProgress);
+        const result = await gatewayAPI.recognizeMaterial(imageBase64, onProgress, signal);
         return result;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         console.warn(`[ResilientGateway] Attempt ${attempt + 1} failed:`, lastError.message);
+
+        // Do not retry if aborted by user
+        if (signal?.aborted || lastError.message.includes('cancelled') || lastError.message.includes('timed out')) {
+          throw lastError;
+        }
 
         // Do not retry client auth/validation/configuration errors
         if (
@@ -46,7 +56,7 @@ export class ResilientGatewayAPI {
           lastError.message.includes('403') ||
           lastError.message.includes('400') ||
           lastError.message.includes('422') ||
-          lastError.message.includes('OPENAI_API_KEY') ||
+          lastError.message.includes('API_KEY') ||
           lastError.message.includes('Incorrect API key')
         ) {
           throw lastError;

@@ -344,7 +344,7 @@ export async function executeOpenAIVisionRecognition(
 export async function executeGeminiVisionRecognition(
   imageBase64: string,
   apiKey: string,
-  modelName: string = 'gemini-3.8-flash'
+  modelName: string = 'gemini-3.5-flash'
 ): Promise<StructuredRecognitionResult> {
   if (!apiKey || !apiKey.trim()) {
     throw new Error('GEMINI_API_KEY is not configured on the server.');
@@ -409,6 +409,7 @@ export async function executeGeminiVisionRecognition(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(35000), // 35s per-model timeout prevents 5-minute freeze
       });
 
       if (response.ok) {

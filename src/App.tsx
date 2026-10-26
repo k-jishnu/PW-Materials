@@ -48,7 +48,15 @@ export const App: React.FC = () => {
     duplicateMaterial,
   } = useMaterials(handlePurchaseAdded);
 
-  const { recognize, isRecognizing, progress } = useAIRecognition();
+  const {
+    recognize,
+    isRecognizing,
+    progress,
+    stage,
+    statusMessage,
+    elapsedSeconds,
+    cancelRecognition,
+  } = useAIRecognition();
 
   const captureSectionRef = useRef<HTMLDivElement>(null);
   const materialsSectionRef = useRef<HTMLDivElement>(null);
@@ -111,6 +119,9 @@ export const App: React.FC = () => {
       });
       setIsAddModalOpen(true);
     } catch (err: any) {
+      if (err.name === 'AbortError' || err.message?.includes('aborted') || err.message?.includes('cancelled')) {
+        return; // User cancelled extraction or superseded
+      }
       alert(`AI Recognition Error: ${err.message || 'Failed to process image'}`);
     }
   };
@@ -162,6 +173,10 @@ export const App: React.FC = () => {
             onPhotoProcessed={handlePhotoProcessed}
             isProcessing={isRecognizing}
             processingProgress={progress}
+            processingStage={stage}
+            processingStatusMessage={statusMessage}
+            processingElapsedSeconds={elapsedSeconds}
+            onCancelProcessing={cancelRecognition}
           />
         </div>
 

@@ -39,7 +39,7 @@ export function aiRecognitionPlugin(): Plugin {
 
             const dynamicEnv = loadEnv(process.env.NODE_ENV || 'development', process.cwd(), '');
             const geminiKey = process.env.GEMINI_API_KEY || dynamicEnv.GEMINI_API_KEY || envConfig.GEMINI_API_KEY || '';
-            const geminiModel = process.env.GEMINI_MODEL || dynamicEnv.GEMINI_MODEL || envConfig.GEMINI_MODEL || 'gemini-3.8-flash';
+            const geminiModel = process.env.GEMINI_MODEL || dynamicEnv.GEMINI_MODEL || envConfig.GEMINI_MODEL || 'gemini-3.5-flash';
 
             const openaiKey = process.env.OPENAI_API_KEY || dynamicEnv.OPENAI_API_KEY || envConfig.OPENAI_API_KEY || '';
             const openaiModel = process.env.OPENAI_MODEL || dynamicEnv.OPENAI_MODEL || envConfig.OPENAI_MODEL || 'gpt-4o-mini';

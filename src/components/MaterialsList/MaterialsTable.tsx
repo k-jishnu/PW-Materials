@@ -37,10 +37,28 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
   onUpdateField,
   onOpenAdd,
 }) => {
-  // Default to card view on mobile, table view on desktop
+  // View mode: Defaults to Table View ('table') on both mobile and desktop.
+  // Persisted in localStorage so explicit user selection is preserved across sessions.
   const [viewMode, setViewMode] = useState<'card' | 'table'>(() => {
-    return typeof window !== 'undefined' && window.innerWidth <= 768 ? 'card' : 'table';
+    try {
+      const saved = localStorage.getItem('pw_materials_view_mode');
+      if (saved === 'card' || saved === 'table') {
+        return saved;
+      }
+    } catch {
+      // Ignore
+    }
+    return 'table'; // Mandatory default: Table View on mobile and desktop
   });
+
+  const handleSetViewMode = (mode: 'card' | 'table') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('pw_materials_view_mode', mode);
+    } catch {
+      // Ignore
+    }
+  };
 
   // Photo Preview Modal state
   const [previewTarget, setPreviewTarget] = useState<Material | null>(null);
@@ -241,7 +259,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
             }}>
               <button
                 type="button"
-                onClick={() => setViewMode('table')}
+                onClick={() => handleSetViewMode('table')}
                 style={{
                   width: '30px',
                   height: '30px',
@@ -261,7 +279,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode('card')}
+                onClick={() => handleSetViewMode('card')}
                 style={{
                   width: '30px',
                   height: '30px',

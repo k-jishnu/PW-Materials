@@ -24,7 +24,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const geminiKey = process.env.GEMINI_API_KEY || '';
-    const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+    const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
     const openaiKey = process.env.OPENAI_API_KEY || '';
     const openaiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';

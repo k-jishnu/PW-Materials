@@ -6,12 +6,20 @@ interface PhotoCaptureProps {
   onPhotoProcessed: (imageBase64: string) => Promise<void>;
   isProcessing: boolean;
   processingProgress: number;
+  processingStage?: 'idle' | 'preparing' | 'sending' | 'extracting' | 'processing' | 'complete' | 'error';
+  processingStatusMessage?: string;
+  processingElapsedSeconds?: number;
+  onCancelProcessing?: () => void;
 }
 
 export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
   onPhotoProcessed,
   isProcessing,
   processingProgress,
+  processingStage,
+  processingStatusMessage,
+  processingElapsedSeconds,
+  onCancelProcessing,
 }) => {
   const {
     videoRef,
@@ -312,32 +320,80 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
                 ⟳
               </div>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF', marginBottom: '4px', fontFamily: 'var(--font-serif)' }}>
-                Extracting material details...
+                {processingStage === 'preparing'
+                  ? 'Preparing document...'
+                  : processingStage === 'sending'
+                  ? 'Connecting to AI engine...'
+                  : processingStage === 'extracting'
+                  ? `AI model extracting details (${processingElapsedSeconds || 0}s)...`
+                  : processingStage === 'processing'
+                  ? 'Validating extracted numbers...'
+                  : processingStage === 'complete'
+                  ? 'Extraction complete!'
+                  : 'Extracting material details...'}
               </h3>
-              <p style={{ fontSize: '13px', color: '#F4EBDD', marginBottom: '14px' }}>
-                Analyzing item name, vendor, tax rate, quantity, and price.
+              <p style={{ fontSize: '13px', color: '#F4EBDD', marginBottom: '14px', maxWidth: '300px' }}>
+                {processingStatusMessage || 'Analyzing item name, vendor, tax rate, quantity, and price.'}
               </p>
 
-              {/* Progress bar */}
+              {/* Progress bar with active animation */}
               <div style={{
                 width: '100%',
-                maxWidth: '240px',
-                height: '8px',
+                maxWidth: '260px',
+                height: '10px',
                 background: '#FFFFFF',
                 borderRadius: 'var(--radius-pill)',
                 overflow: 'hidden',
                 border: '1.5px solid var(--color-border)',
+                position: 'relative',
               }}>
-                <div style={{
-                  width: `${processingProgress}%`,
-                  height: '100%',
-                  background: 'var(--color-teal)',
-                  transition: 'width 0.2s ease',
-                }} />
+                <div
+                  className={processingStage === 'extracting' ? 'progress-pulse' : ''}
+                  style={{
+                    width: `${Math.min(100, Math.max(5, processingProgress))}%`,
+                    height: '100%',
+                    background: processingStage === 'complete' ? 'var(--color-success)' : 'var(--color-teal)',
+                    transition: 'width 0.3s ease',
+                  }}
+                />
               </div>
-              <span style={{ fontSize: '12px', marginTop: '6px', color: '#F4EBDD', fontWeight: 700 }}>
-                {processingProgress}%
-              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '6px' }}>
+                <span style={{ fontSize: '12px', color: '#F4EBDD', fontWeight: 700 }}>
+                  {processingProgress}%
+                </span>
+                <span style={{ fontSize: '12px', color: '#94A3B8' }}>•</span>
+                <span style={{ fontSize: '12px', color: '#F4EBDD' }}>
+                  {processingElapsedSeconds || 0}s elapsed
+                </span>
+              </div>
+
+              {/* Long-running message when elapsed >= 15s */}
+              {(processingElapsedSeconds || 0) >= 15 && (
+                <p style={{ fontSize: '11px', color: '#FDE047', marginTop: '10px', maxWidth: '280px' }}>
+                  Detailed documents with multiple line items require extra analysis. Still working...
+                </p>
+              )}
+
+              {/* Cancel button */}
+              {onCancelProcessing && (
+                <button
+                  type="button"
+                  onClick={onCancelProcessing}
+                  className="btn btn-outline btn-sm"
+                  style={{
+                    marginTop: '14px',
+                    height: '28px',
+                    padding: '0 12px',
+                    fontSize: '11px',
+                    color: '#FFFFFF',
+                    borderColor: 'rgba(255,255,255,0.4)',
+                    background: 'transparent',
+                  }}
+                >
+                  Cancel extraction
+                </button>
+              )}
             </div>
           )}
 

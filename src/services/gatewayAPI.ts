@@ -44,40 +44,72 @@ export class GatewayAPI {
 
   public async recognizeMaterial(
     imageBase64: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number, stage?: string, message?: string) => void,
+    signal?: AbortSignal
   ): Promise<MaterialRecognitionResult> {
-    onProgress?.(15);
+    onProgress?.(10, 'preparing', 'Validating and preparing document...');
 
-    // 1. First attempt: call secure server-side OpenAI Vision endpoint (/api/recognize)
+    // Call secure server-side AI Vision endpoint (/api/recognize)
     try {
-      onProgress?.(30);
-      const res = await fetch('/api/recognize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64 }),
-      });
+      onProgress?.(25, 'sending', 'Connecting to AI vision engine...');
 
-      onProgress?.(70);
+      // Keep UI continuously alive while the model processes without claiming false completion
+      let elapsed = 0;
+      const progressTimer = setInterval(() => {
+        elapsed += 1;
+        if (elapsed <= 4) {
+          onProgress?.(30, 'extracting', `AI model analyzing document (${elapsed}s)...`);
+        } else if (elapsed <= 12) {
+          const p = Math.min(60, 30 + Math.round((elapsed - 4) * 3.5));
+          onProgress?.(p, 'extracting', `Extracting material items, vendor & quantities (${elapsed}s)...`);
+        } else if (elapsed <= 25) {
+          const p = Math.min(75, 60 + Math.round((elapsed - 12) * 1.1));
+          onProgress?.(p, 'extracting', `Deep document analysis in progress (${elapsed}s)...`);
+        } else {
+          onProgress?.(78, 'extracting', `Processing large document proof (${elapsed}s)... Still working...`);
+        }
+      }, 1000);
+
+      let res: Response;
+      try {
+        const fetchSignal = signal || AbortSignal.timeout(45000);
+        res = await fetch('/api/recognize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64 }),
+          signal: fetchSignal,
+        });
+      } finally {
+        clearInterval(progressTimer);
+      }
+
+      onProgress?.(85, 'processing', 'Parsing & validating extracted fields...');
 
       if (res.ok) {
         const data = await res.json();
         if (data && data.success && data.result) {
-          onProgress?.(95);
-          return this.mapStructuredToRecognitionResult(data.result);
+          onProgress?.(95, 'processing', 'Normalizing line items and review draft...');
+          const mapped = this.mapStructuredToRecognitionResult(data.result);
+          onProgress?.(100, 'complete', 'Recognition complete! Opening review form...');
+          return mapped;
         }
         throw new Error('Malformed recognition response from server.');
       } else {
         const errData = await res.json().catch(() => ({}));
         if (errData.code === 'MISSING_API_KEY') {
-          throw new Error('OPENAI_API_KEY is missing. Please configure OPENAI_API_KEY in your server environment (.env).');
+          throw new Error('Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured in your server environment (.env).');
         }
         throw new Error(errData.error || `AI Recognition failed (HTTP ${res.status}: ${res.statusText})`);
       }
     } catch (networkErr: any) {
+      if (networkErr.name === 'AbortError' || networkErr.message?.includes('aborted') || networkErr.message?.includes('timeout')) {
+        throw new Error('AI extraction timed out after 45s. Please check your network connection and retry.');
+      }
       // Re-throw if it's already an explicit API or configuration error
       if (
-        networkErr.message?.includes('OPENAI_API_KEY') ||
+        networkErr.message?.includes('API_KEY') ||
         networkErr.message?.includes('AI Recognition failed') ||
+        networkErr.message?.includes('Gemini Vision API') ||
         networkErr.message?.includes('OpenAI Vision API') ||
         networkErr.message?.includes('Malformed recognition')
       ) {

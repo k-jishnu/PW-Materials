@@ -204,10 +204,10 @@ export const useCamera = () => {
           return;
         }
 
-        // Auto-optimize large images > 1920px so mobile uploads don't freeze the browser
+        // Auto-optimize images to max 1600px & JPEG 0.85 so mobile payloads are ~250KB instead of 5-8MB
         const img = new Image();
         img.onload = () => {
-          const maxDim = 1920;
+          const maxDim = 1600;
           let { width, height } = img;
           if (width > maxDim || height > maxDim) {
             if (width > height) {
@@ -217,15 +217,15 @@ export const useCamera = () => {
               width = Math.round((width * maxDim) / height);
               height = maxDim;
             }
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, width, height);
-              onFileReady(canvas.toDataURL('image/jpeg', 0.85));
-              return;
-            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            onFileReady(canvas.toDataURL('image/jpeg', 0.85));
+            return;
           }
           onFileReady(result);
         };

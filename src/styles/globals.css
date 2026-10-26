@@ -557,3 +557,23 @@ p, span, div, label {
     gap: 14px;
   }
 }
+
+/* Extraction Progress Bar Active Animation */
+@keyframes progressPulse {
+  0% {
+    opacity: 0.85;
+    filter: brightness(0.95);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.2);
+  }
+  100% {
+    opacity: 0.85;
+    filter: brightness(0.95);
+  }
+}
+
+.progress-pulse {
+  animation: progressPulse 1.4s ease-in-out infinite;
+}
