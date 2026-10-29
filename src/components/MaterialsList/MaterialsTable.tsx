@@ -1,4 +1,3 @@
-// src/components/MaterialsList/MaterialsTable.tsx
 import React, { useState, useMemo } from 'react';
 import { Material } from '@/types';
 import { MaterialCard } from './MaterialCard';
@@ -8,12 +7,9 @@ import {
   ArrowUpDown,
   LayoutGrid,
   Table as TableIcon,
-  CheckCircle,
   Trash2,
   Package,
   Search,
-  Check,
-  Eye,
 } from 'lucide-react';
 import { PhotoThumbnail } from './PhotoThumbnail';
 import { PhotoPreviewModal } from './PhotoPreviewModal';
@@ -64,8 +60,8 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
   const [previewTarget, setPreviewTarget] = useState<Material | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [taxFilter, setTaxFilter] = useState<'all' | 'gst' | 'non-gst'>('all');
-  const [sortField, setSortField] = useState<'item' | 'price' | 'vendor'>('item');
-  const [sortAsc, setSortAsc] = useState(true);
+  const [sortField, setSortField] = useState<'item' | 'price' | 'vendor' | 'date'>('date');
+  const [sortAsc, setSortAsc] = useState(false); // Default: newest first (descending)
 
   // Filter & Search
   const filteredMaterials = useMemo(() => {
@@ -87,7 +83,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
     });
   }, [materials, searchQuery, taxFilter]);
 
-  // Sorting
+  // Sorting — default is newest first (by createdAt)
   const sortedMaterials = useMemo(() => {
     return [...filteredMaterials].sort((a, b) => {
       let comparison = 0;
@@ -99,17 +95,22 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
         const totalA = (a.price.value ?? 0) * (a.quantity.value.value ?? 0);
         const totalB = (b.price.value ?? 0) * (b.quantity.value.value ?? 0);
         comparison = totalA - totalB;
+      } else if (sortField === 'date') {
+        // Sort by createdAt timestamp — newest first by default
+        const dateA = new Date(a.createdAt || '').getTime();
+        const dateB = new Date(b.createdAt || '').getTime();
+        comparison = dateA - dateB;
       }
       return sortAsc ? comparison : -comparison;
     });
   }, [filteredMaterials, sortField, sortAsc]);
 
-  const toggleSort = (field: 'item' | 'price' | 'vendor') => {
+  const toggleSort = (field: 'item' | 'price' | 'vendor' | 'date') => {
     if (sortField === field) {
       setSortAsc(!sortAsc);
     } else {
       setSortField(field);
-      setSortAsc(true);
+      setSortAsc(field !== 'date'); // Dates default to newest first (descending = false)
     }
   };
 
@@ -152,21 +153,6 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
               <Plus size={15} strokeWidth={2.5} />
               <span>Add material</span>
             </button>
-
-            {
-              materials.some((m) => m.status === 'draft') && (
-                <button
-                  type="button"
-                  onClick={onCommitAll}
-                  className="btn btn-success btn-sm"
-                  style={{ height: '36px' }}
-                  title="Confirm and save all drafts to local storage"
-                >
-                  <Check size={14} strokeWidth={2.5} />
-                  <span>Save all drafts ({materials.filter((m) => m.status === 'draft').length})</span>
-                </button>
-              )
-            }
           </div>
         )}
       </div>
@@ -415,7 +401,6 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                 <thead>
                 <tr style={{ background: 'var(--color-logo-bg)', borderBottom: '2px solid var(--color-border)', fontSize: '13px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>
                   <th style={{ padding: '12px 10px', fontWeight: 700, textAlign: 'center', width: '56px' }}>Photo</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>SKU</th>
                   <th
                     onClick={() => toggleSort('item')}
                     style={{ padding: '12px 14px', fontWeight: 700, cursor: 'pointer', userSelect: 'none' }}
@@ -443,9 +428,18 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                       <ArrowUpDown size={13} strokeWidth={2.5} />
                     </div>
                   </th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Quantity</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Qty</th>
                   <th style={{ padding: '12px 14px', fontWeight: 700 }}>Tax</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Company</th>
+                  <th style={{ padding: '12px 14px', fontWeight: 700 }}>Brand</th>
+                  <th
+                    onClick={() => toggleSort('date')}
+                    style={{ padding: '12px 14px', fontWeight: 700, cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>Date</span>
+                      <ArrowUpDown size={13} strokeWidth={2.5} />
+                    </div>
+                  </th>
                   <th style={{ padding: '12px 14px', fontWeight: 700, textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
@@ -456,6 +450,10 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                   const sub = (mat.price.value ?? 0) * (mat.quantity.value.value ?? 0);
                   const gst = mat.gst.isGSTInvoice && mat.gst.rate !== null ? (sub * mat.gst.rate) / 100 : 0;
                   const net = sub + gst;
+                  // Format date for display
+                  const displayDate = mat.createdAt
+                    ? new Date(mat.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
+                    : '—';
 
                   return (
                     <tr
@@ -478,10 +476,6 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                         />
                       </td>
 
-                      <td className="mono" style={{ padding: '12px 14px', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 600 }}>
-                        {mat.sku}
-                      </td>
-
                       <td style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{mat.item.value}</span>
@@ -499,7 +493,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                         {mat.vendor.value || '—'}
                       </td>
 
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: hasPrice && hasQty ? 'var(--text-primary)' : '#94A3B8' }}>
                         {hasPrice && hasQty ? `₹${net.toLocaleString('en-IN')}` : '₹--'}
                       </td>
 
@@ -507,52 +501,57 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                         {hasQty ? `${mat.quantity.value.value} ${mat.quantity.value.unit}` : '—'}
                       </td>
 
-                      <td style={{ padding: '12px 14px' }}>
-                        <span className={`badge ${mat.gst.rate !== null && mat.gst.isGSTInvoice ? 'badge-success' : 'badge-neutral'}`}>
-                          {mat.gst.rate !== null ? (mat.gst.isGSTInvoice ? `GST ${mat.gst.rate}%` : `GST ${mat.gst.rate}% (Exempt)`) : '—'}
+                      <td style={{ padding: '8px 14px' }}>
+                        {/* Compact GST badge */}
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          background: mat.gst.rate !== null && mat.gst.isGSTInvoice ? '#D1FAE5' : '#F1F5F9',
+                          color: mat.gst.rate !== null && mat.gst.isGSTInvoice ? '#065F46' : '#64748B',
+                          border: `1px solid ${mat.gst.rate !== null && mat.gst.isGSTInvoice ? '#6EE7B7' : '#CBD5E1'}`,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {mat.gst.rate !== null
+                            ? (mat.gst.isGSTInvoice ? `GST ${mat.gst.rate}%` : `${mat.gst.rate}% Exempt`)
+                            : '—'}
                         </span>
                       </td>
 
-                      <td style={{ padding: '12px 14px', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                        {mat.company.value || 'PW'}
+                      <td style={{ padding: '12px 14px', color: mat.company.value ? 'var(--text-secondary)' : '#94A3B8', fontSize: '12px' }}>
+                        {mat.company.value || '—'}
                       </td>
 
-                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                          {mat.status === 'saved' ? (
-                            <span
-                              className="badge badge-success"
-                              style={{ height: '28px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '0 8px' }}
-                              title="Confirmed and saved locally"
-                            >
-                              <CheckCircle size={12} strokeWidth={2.5} />
-                              <span>Saved</span>
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => onCommit(mat.id)}
-                              className="btn btn-success btn-sm"
-                              style={{ height: '30px', padding: '0 10px', fontSize: '12px' }}
-                              title="Confirm and save to local storage"
-                            >
-                              <CheckCircle size={13} strokeWidth={2.5} />
-                              <span>Save</span>
-                            </button>
-                          )}
+                      <td style={{ padding: '12px 14px', color: 'var(--text-secondary)', fontSize: '12px' }}>
+                        {displayDate}
+                      </td>
+
+                      <td style={{ padding: '8px 14px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                           <button
                             type="button"
                             onClick={() => setPreviewTarget(mat)}
                             className="btn-icon"
                             style={{ width: '30px', height: '30px', color: mat.photoUrl ? '#202020' : '#94A3B8' }}
-                            title={mat.photoUrl ? 'View original photo / invoice' : 'No photo attached'}
+                            title={mat.photoUrl ? 'View original photo' : 'No photo attached'}
                             aria-label="View photo"
                           >
-                            <Eye size={13} strokeWidth={2.2} />
+                            {/* Eye icon inline SVG to avoid import issues */}
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                              <circle cx="12" cy="12" r="3"/>
+                            </svg>
                           </button>
                           <button
                             type="button"
-                            onClick={() => onDelete(mat.id)}
+                            onClick={() => {
+                              if (window.confirm(`Delete "${mat.item.value}"?\n\nThis action cannot be undone.`)) {
+                                onDelete(mat.id);
+                              }
+                            }}
                             className="btn-icon"
                             style={{ width: '30px', height: '30px', color: '#202020' }}
                             title="Delete item"

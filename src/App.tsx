@@ -76,36 +76,51 @@ export const App: React.FC = () => {
   const handlePhotoProcessed = async (imageBase64: string) => {
     try {
       const result = await recognize(imageBase64);
+      const isMaterialPhoto = result.documentType === 'material_photo' || !result.documentType;
 
       // Support multi-line invoice items or single item fallback
       const mappedItems: ReviewItemData[] =
         result.allLineItems && result.allLineItems.length > 0
           ? result.allLineItems.map((li) => ({
               item: li.item_name || li.description || '',
-              vendor: result.vendor?.name || '',
+              // For material photos: vendor = blank (user enters supplier manually)
+              // For invoices: vendor = supplier name from invoice
+              vendor: isMaterialPhoto ? '' : (result.vendor?.name || ''),
               price: li.unit_price != null ? Number(li.unit_price) : '',
-              company: result.company?.name || '',
+              // For material photos: company = product brand/manufacturer from AI
+              // For invoices: company = company_ref from invoice
+              company: isMaterialPhoto
+                ? (result.vendor?.name || '')  // brand/manufacturer goes to company field
+                : (result.company?.name || ''),
               qtyValue: li.quantity != null ? Number(li.quantity) : '',
-              qtyUnit: li.unit || "no's",
-              gstRate: result.gst?.rate != null ? Number(result.gst.rate) : '',
+              qtyUnit: li.unit || (isMaterialPhoto ? 'nos' : "no's"),
+              gstRate: result.gst?.rate != null ? Number(result.gst.rate) : 18,
               isGSTInvoice: Boolean(result.gst?.isGSTInvoice && result.gst?.rate && Number(result.gst.rate) > 0),
-              date: result.invoiceDate || new Date().toISOString().split('T')[0],
-              invoiceNumber: result.invoiceNumber || '',
+              date: isMaterialPhoto
+                ? new Date().toISOString().split('T')[0]  // use today for material photos (capture date)
+                : (result.invoiceDate || new Date().toISOString().split('T')[0]),
+              invoiceNumber: isMaterialPhoto ? '' : (result.invoiceNumber || ''),
               photoUrl: imageBase64,
               confidenceScore: li.confidence_score || 0.95,
             }))
           : [
               {
                 item: result.item?.name || '',
-                vendor: result.vendor?.name || '',
+                // For material photos: vendor stays blank (user must enter supplier manually)
+                vendor: isMaterialPhoto ? '' : (result.vendor?.name || ''),
                 price: result.price?.amount != null ? Number(result.price.amount) : '',
-                company: result.company?.name || '',
-                qtyValue: result.quantity?.value != null ? Number(result.quantity.value) : '',
-                qtyUnit: result.quantity?.unit || "no's",
-                gstRate: result.gst?.rate != null ? Number(result.gst.rate) : '',
+                // For material photos: company = product brand/manufacturer identified from image
+                company: isMaterialPhoto
+                  ? (result.vendor?.name || '')  // brand/manufacturer goes to company field
+                  : (result.company?.name || ''),
+                qtyValue: result.quantity?.value != null ? Number(result.quantity.value) : 1,
+                qtyUnit: result.quantity?.unit || (isMaterialPhoto ? 'nos' : "no's"),
+                gstRate: result.gst?.rate != null ? Number(result.gst.rate) : 18,
                 isGSTInvoice: Boolean(result.gst?.isGSTInvoice && result.gst?.rate && Number(result.gst.rate) > 0),
-                date: result.invoiceDate || new Date().toISOString().split('T')[0],
-                invoiceNumber: result.invoiceNumber || '',
+                date: isMaterialPhoto
+                  ? new Date().toISOString().split('T')[0]  // use today for material photos (capture date)
+                  : (result.invoiceDate || new Date().toISOString().split('T')[0]),
+                invoiceNumber: isMaterialPhoto ? '' : (result.invoiceNumber || ''),
                 photoUrl: imageBase64,
                 confidenceScore: result.item?.confidence || 0.95,
               },
@@ -116,6 +131,7 @@ export const App: React.FC = () => {
         items: mappedItems,
         source: 'ai',
         photoUrl: imageBase64,
+        documentType: isMaterialPhoto ? 'material_photo' : 'invoice',
       });
       setIsAddModalOpen(true);
     } catch (err: any) {

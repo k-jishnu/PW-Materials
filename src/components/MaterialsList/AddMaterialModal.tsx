@@ -6,13 +6,7 @@ import {
   Minus,
   Check,
   ChevronDown,
-  Sparkles,
-  Calendar,
-  Building,
-  FileText,
   AlertCircle,
-  Package,
-  Eye,
 } from 'lucide-react';
 import { PhotoThumbnail } from './PhotoThumbnail';
 import { PhotoPreviewModal } from './PhotoPreviewModal';
@@ -36,6 +30,7 @@ export interface ModalInitialData {
   items: ReviewItemData[];
   source: 'ai' | 'manual';
   photoUrl?: string;
+  documentType?: 'material_photo' | 'invoice' | 'receipt' | 'unknown';
 }
 
 interface AddMaterialModalProps {
@@ -67,6 +62,9 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
   initialData,
 }) => {
   const isAIMode = initialData?.source === 'ai';
+  // For material photos, hide invoice-specific fields
+  const isMaterialPhoto = !initialData?.documentType || initialData?.documentType === 'material_photo';
+  const showInvoiceFields = !isMaterialPhoto; // Only show invoice fields for explicit invoice uploads
 
   const [items, setItems] = useState<ReviewItemData[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -74,20 +72,33 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
+  const itemNameRef = React.useRef<HTMLInputElement>(null);
+  const supplierRef = React.useRef<HTMLInputElement>(null);
+  const brandRef = React.useRef<HTMLInputElement>(null);
+  const unitPriceRef = React.useRef<HTMLInputElement>(null);
+
+  const [validationErrors, setValidationErrors] = useState<{
+    item?: string;
+    vendor?: string;
+    company?: string;
+    price?: string;
+  }>({});
+
   // Initialize or reset form whenever modal opens or initialData changes
   useEffect(() => {
     if (isOpen) {
+      setValidationErrors({});
       if (initialData?.items && initialData.items.length > 0) {
         setItems(
           initialData.items.map((it) => ({
             item: it.item || '',
             vendor: it.vendor || '',
             price: typeof it.price === 'number' && !isNaN(it.price) ? it.price : '',
-            company: it.company || 'PW',
+            company: it.company || '',
             qtyValue: typeof it.qtyValue === 'number' && !isNaN(it.qtyValue) ? it.qtyValue : '',
             qtyUnit: it.qtyUnit || "no's",
             gstRate: typeof it.gstRate === 'number' && !isNaN(it.gstRate) ? it.gstRate : 18,
-            isGSTInvoice: it.isGSTInvoice ?? true,
+            isGSTInvoice: it.isGSTInvoice ?? false,
             date: it.date || new Date().toISOString().split('T')[0],
             invoiceNumber: it.invoiceNumber || '',
             photoUrl: it.photoUrl || initialData.photoUrl || '',
@@ -101,11 +112,11 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             item: '',
             vendor: '',
             price: '',
-            company: 'PW',
+            company: '',
             qtyValue: '',
             qtyUnit: "no's",
             gstRate: 18,
-            isGSTInvoice: true,
+            isGSTInvoice: false,
             date: new Date().toISOString().split('T')[0],
             invoiceNumber: '',
           },
@@ -123,11 +134,11 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
     item: '',
     vendor: '',
     price: '',
-    company: 'PW',
+    company: '',
     qtyValue: '',
     qtyUnit: "no's",
     gstRate: 18,
-    isGSTInvoice: true,
+    isGSTInvoice: false,
     date: new Date().toISOString().split('T')[0],
     invoiceNumber: '',
   };
@@ -145,6 +156,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
   const handleClose = () => {
     if (isSubmitting) return;
     setErrorMessage(null);
+    setValidationErrors({});
     onClose();
   };
 
@@ -161,40 +173,82 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
   };
 
   // Dynamic calculations for active item
-  const numericPrice = typeof currentItem.price === 'number' && !isNaN(currentItem.price) ? currentItem.price : 0;
-  const numericQty = typeof currentItem.qtyValue === 'number' && !isNaN(currentItem.qtyValue) ? currentItem.qtyValue : 0;
-  const subtotal = numericPrice * numericQty;
-  const numericGstRate =
-    currentItem.isGSTInvoice && typeof currentItem.gstRate === 'number' && !isNaN(currentItem.gstRate)
+  const numericPrice = typeof currentItem.price === 'number' && !isNaN(currentItem.price) ? currentItem.price : null;
+  const numericQty = typeof currentItem.qtyValue === 'number' && !isNaN(currentItem.qtyValue) ? currentItem.qtyValue : null;
+  const hasCalculableTotal = numericPrice !== null && numericQty !== null;
+
+  const subtotal = hasCalculableTotal ? numericPrice * numericQty : 0;
+  const activeGstRate =
+    typeof currentItem.gstRate === 'number' && !isNaN(currentItem.gstRate)
       ? currentItem.gstRate
-      : 0;
-  const gstAmount = currentItem.isGSTInvoice ? (subtotal * numericGstRate) / 100 : 0;
-  const netTotal = subtotal + gstAmount;
+      : 18;
+  const effectiveGstRate = currentItem.isGSTInvoice ? activeGstRate : 0;
+  const gstAmount = hasCalculableTotal && currentItem.isGSTInvoice ? (subtotal * effectiveGstRate) / 100 : 0;
+  const netTotal = hasCalculableTotal ? subtotal + gstAmount : 0;
+
+  const formatCurrency = (val: number): string => {
+    const rounded = Math.round(val * 100) / 100;
+    return Number.isInteger(rounded)
+      ? rounded.toLocaleString('en-IN')
+      : rounded.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setErrorMessage(null);
+    setValidationErrors({});
 
-    // Validate that each item has a material description
+    // Validate that each item has all four required fields: Material Name, Supplier, Brand, Unit Price
     for (let i = 0; i < items.length; i++) {
-      if (!items[i].item.trim()) {
-        setActiveIndex(i);
-        setErrorMessage(
-          items.length > 1
-            ? `Item #${i + 1} is missing Material Description / Name.`
-            : 'Material Description / Name is required.'
-        );
-        return;
+      const cur = items[i];
+      const itemTrimmed = (cur.item || '').trim();
+      const vendorTrimmed = (cur.vendor || '').trim();
+      const companyTrimmed = (cur.company || '').trim();
+      const priceValid = typeof cur.price === 'number' && !isNaN(cur.price) && cur.price > 0;
+
+      const itemErrors: { item?: string; vendor?: string; company?: string; price?: string } = {};
+
+      if (!itemTrimmed) {
+        itemErrors.item = 'Material Name is required.';
       }
-      if (typeof items[i].price === 'number' && (items[i].price as number) < 0) {
-        setActiveIndex(i);
-        setErrorMessage(`Item #${i + 1} has an invalid negative unit price.`);
-        return;
+      if (!vendorTrimmed) {
+        itemErrors.vendor = 'Supplier is required.';
       }
-      if (typeof items[i].qtyValue === 'number' && (items[i].qtyValue as number) < 0) {
+      if (!companyTrimmed) {
+        itemErrors.company = 'Brand is required.';
+      }
+      if (!priceValid) {
+        itemErrors.price = 'Unit Price is required and must be greater than zero.';
+      }
+
+      if (typeof cur.qtyValue === 'number' && (cur.qtyValue as number) < 0) {
         setActiveIndex(i);
         setErrorMessage(`Item #${i + 1} has an invalid negative quantity.`);
+        return;
+      }
+
+      if (Object.keys(itemErrors).length > 0) {
+        setActiveIndex(i);
+        setValidationErrors(itemErrors);
+        const missingLabels: string[] = [];
+        if (itemErrors.item) missingLabels.push('Material Name');
+        if (itemErrors.vendor) missingLabels.push('Supplier');
+        if (itemErrors.company) missingLabels.push('Brand');
+        if (itemErrors.price) missingLabels.push('Unit Price');
+
+        setErrorMessage(
+          items.length > 1
+            ? `Item #${i + 1}: Please enter required fields: ${missingLabels.join(', ')}.`
+            : `Please enter required fields: ${missingLabels.join(', ')}.`
+        );
+
+        setTimeout(() => {
+          if (itemErrors.item) itemNameRef.current?.focus();
+          else if (itemErrors.vendor) supplierRef.current?.focus();
+          else if (itemErrors.company) brandRef.current?.focus();
+          else if (itemErrors.price) unitPriceRef.current?.focus();
+        }, 50);
         return;
       }
     }
@@ -274,7 +328,7 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 width: '34px',
                 height: '34px',
                 borderRadius: 'var(--radius-sm)',
-                background: isAIMode ? 'var(--color-yellow)' : 'var(--color-logo-bg)',
+                background: 'var(--color-logo-bg)',
                 border: '2px solid var(--color-border)',
                 boxShadow: 'var(--shadow-hard-xs)',
                 display: 'flex',
@@ -284,44 +338,28 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 flexShrink: 0,
               }}
             >
-              {isAIMode ? <Sparkles size={18} strokeWidth={2.5} /> : <Plus size={18} strokeWidth={2.5} />}
+              {/* PW Materials app logo - play/forward mark */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#202020" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16.5 9.4 7.55 4.24a1.78 1.78 0 0 0-2.5 1.55v12.42a1.78 1.78 0 0 0 2.5 1.55L16.5 14.6a1.78 1.78 0 0 0 0-3.2z" />
+                <path d="M21 7v10" />
+              </svg>
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <h3
-                  style={{
-                    margin: 0,
-                    fontSize: '18px',
-                    fontWeight: 900,
-                    color: 'var(--text-primary)',
-                    fontFamily: 'var(--font-serif)',
-                  }}
-                >
-                  {isAIMode
-                    ? items.length > 1
-                      ? `Review invoice materials (${items.length} items)`
-                      : 'Review material'
-                    : 'Add material'}
-                </h3>
-                {isAIMode && (
-                  <span
-                    className="badge badge-warning"
-                    style={{
-                      fontSize: '11px',
-                      padding: '2px 8px',
-                      background: 'var(--color-butter-yellow)',
-                      color: '#202020',
-                    }}
-                  >
-                    AI Extracted · Review
-                  </span>
-                )}
-              </div>
-              <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: '18px',
+                  fontWeight: 900,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-serif)',
+                }}
+              >
                 {isAIMode
-                  ? 'Inspect and edit extracted fields before confirming to save.'
-                  : 'Enter purchase details manually.'}
-              </p>
+                  ? items.length > 1
+                    ? `Review materials (${items.length} items)`
+                    : 'Review material'
+                  : 'Add material'}
+              </h3>
             </div>
           </div>
 
@@ -359,7 +397,10 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => setActiveIndex(idx)}
+                  onClick={() => {
+                    setActiveIndex(idx);
+                    setValidationErrors({});
+                  }}
                   style={{
                     padding: '5px 10px',
                     borderRadius: 'var(--radius-sm)',
@@ -397,51 +438,47 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             boxSizing: 'border-box',
           }}
         >
-          {/* Attached Photo / Document Proof Bar */}
+          {/* Material Image Preview Section */}
           {(currentItem.photoUrl || initialData?.photoUrl) && (
             <div
               style={{
-                padding: '10px 14px',
-                background: 'var(--color-logo-bg)',
-                border: '2px solid var(--color-border)',
+                padding: '8px 12px',
+                background: 'var(--bg-surface)',
+                border: '1.5px solid var(--color-border)',
                 borderRadius: 'var(--radius-sm)',
+                boxShadow: 'var(--shadow-hard-xs)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '10px',
-                boxShadow: '1.5px 1.5px 0 var(--color-border)',
+                gap: '12px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+              <div
+                onClick={() => setIsPreviewOpen(true)}
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                title="Click to view full photo"
+              >
                 <PhotoThumbnail
                   photoUrl={currentItem.photoUrl || initialData?.photoUrl}
-                  alt="Captured invoice / material"
-                  size={36}
+                  alt="Uploaded material photo"
+                  size={42}
                   onClick={() => setIsPreviewOpen(true)}
                 />
-                <div style={{ minWidth: 0 }}>
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    Original Document / Photo Attached
-                  </span>
-                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                    Inspect document proof to verify extracted quantities, vendor, and rates.
-                  </p>
-                </div>
               </div>
-
-              <button
-                type="button"
+              <div
                 onClick={() => setIsPreviewOpen(true)}
-                className="btn btn-secondary btn-sm"
-                style={{ height: '32px', padding: '0 12px', fontSize: '12px', flexShrink: 0 }}
+                style={{ minWidth: 0, flex: 1, cursor: 'pointer' }}
               >
-                <Eye size={13} strokeWidth={2.2} />
-                <span>View proof</span>
-              </button>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Uploaded material photo
+                </span>
+                <p style={{ margin: '1px 0 0', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                  Click thumbnail to view full image
+                </p>
+              </div>
             </div>
           )}
 
-          {/* 1. Material Description / Name */}
+          {/* 1. Material Name */}
           <div>
             <label
               style={{
@@ -452,23 +489,31 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 marginBottom: '4px',
               }}
             >
-              Material Description / Name <span style={{ color: '#EF4444', fontWeight: 700 }}>*</span>
+              Material Name <span style={{ color: '#EF4444', fontWeight: 700 }}>*</span>
             </label>
             <input
+              ref={itemNameRef}
               type="text"
-              required
-              placeholder="e.g. 12mm TMT Steel Rebar Fe550"
+              placeholder="e.g. 32A Double Pole MCB"
               value={currentItem.item}
-              onChange={(e) => updateCurrentItem({ item: e.target.value })}
+              onChange={(e) => {
+                updateCurrentItem({ item: e.target.value });
+                if (validationErrors.item) setValidationErrors((prev) => ({ ...prev, item: undefined }));
+              }}
               className="input-base"
+              style={{
+                borderColor: validationErrors.item ? '#EF4444' : undefined,
+              }}
               autoFocus
             />
-            {isAIMode && !currentItem.item.trim() && (
-              <span style={fieldHintStyle}>Not detected — enter material name</span>
+            {validationErrors.item && (
+              <span style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600, marginTop: '3px', display: 'block' }}>
+                {validationErrors.item}
+              </span>
             )}
           </div>
 
-          {/* 2. Supplier / Vendor & Material Brand */}
+          {/* 2. Supplier & Brand */}
           <div className="modal-grid-2col">
             <div>
               <label
@@ -480,17 +525,26 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                   marginBottom: '4px',
                 }}
               >
-                Supplier / Vendor
+                Supplier <span style={{ color: '#EF4444', fontWeight: 700 }}>*</span>
               </label>
               <input
+                ref={supplierRef}
                 type="text"
-                placeholder="e.g. ABC Steel Corp"
+                placeholder="e.g. ABC Electricals"
                 value={currentItem.vendor}
-                onChange={(e) => updateCurrentItem({ vendor: e.target.value })}
+                onChange={(e) => {
+                  updateCurrentItem({ vendor: e.target.value });
+                  if (validationErrors.vendor) setValidationErrors((prev) => ({ ...prev, vendor: undefined }));
+                }}
                 className="input-base"
+                style={{
+                  borderColor: validationErrors.vendor ? '#EF4444' : undefined,
+                }}
               />
-              {isAIMode && !currentItem.vendor.trim() && (
-                <span style={fieldHintStyle}>Not detected — enter manually</span>
+              {validationErrors.vendor && (
+                <span style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600, marginTop: '3px', display: 'block' }}>
+                  {validationErrors.vendor}
+                </span>
               )}
             </div>
 
@@ -504,17 +558,26 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                   marginBottom: '4px',
                 }}
               >
-                Material Brand / Company
+                Brand <span style={{ color: '#EF4444', fontWeight: 700 }}>*</span>
               </label>
               <input
+                ref={brandRef}
                 type="text"
-                placeholder="e.g. Tata Tiscon / UltraTech / PW"
+                placeholder="e.g. GM, Havells, Schneider Electric"
                 value={currentItem.company}
-                onChange={(e) => updateCurrentItem({ company: e.target.value })}
+                onChange={(e) => {
+                  updateCurrentItem({ company: e.target.value });
+                  if (validationErrors.company) setValidationErrors((prev) => ({ ...prev, company: undefined }));
+                }}
                 className="input-base"
+                style={{
+                  borderColor: validationErrors.company ? '#EF4444' : undefined,
+                }}
               />
-              {isAIMode && (!currentItem.company.trim() || currentItem.company === 'PW') && (
-                <span style={fieldHintStyle}>e.g. UltraTech, Tata, or PW</span>
+              {validationErrors.company && (
+                <span style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600, marginTop: '3px', display: 'block' }}>
+                  {validationErrors.company}
+                </span>
               )}
             </div>
           </div>
@@ -532,24 +595,32 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                   marginBottom: '4px',
                 }}
               >
-                Unit Price (₹ Rate)
+                Unit Price (₹ Rate) <span style={{ color: '#EF4444', fontWeight: 700 }}>*</span>
               </label>
               <input
+                ref={unitPriceRef}
                 type="number"
                 min="0"
                 step="any"
                 placeholder="₹ Rate"
                 value={currentItem.price}
-                onChange={(e) =>
+                onChange={(e) => {
                   updateCurrentItem({
                     price: e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0),
-                  })
-                }
+                  });
+                  if (validationErrors.price) setValidationErrors((prev) => ({ ...prev, price: undefined }));
+                }}
                 className="input-base"
-                style={{ height: '40px', boxShadow: 'var(--shadow-hard-xs)' }}
+                style={{
+                  height: '40px',
+                  boxShadow: 'var(--shadow-hard-xs)',
+                  borderColor: validationErrors.price ? '#EF4444' : undefined,
+                }}
               />
-              {isAIMode && currentItem.price === '' && (
-                <span style={fieldHintStyle}>Not detected — enter unit rate</span>
+              {validationErrors.price && (
+                <span style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600, marginTop: '3px', display: 'block' }}>
+                  {validationErrors.price}
+                </span>
               )}
             </div>
 
@@ -709,29 +780,8 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
             </div>
           </div>
 
-          {/* 4. Purchase Date & Invoice Number Row */}
-          <div className="modal-grid-2col">
-            <div>
-              <label
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
-                  display: 'block',
-                  marginBottom: '4px',
-                }}
-              >
-                Purchase / Invoice Date
-              </label>
-              <input
-                type="date"
-                value={currentItem.date}
-                onChange={(e) => updateCurrentItem({ date: e.target.value })}
-                className="input-base"
-                style={{ height: '40px' }}
-              />
-            </div>
-
+          {/* Optional Invoice Number for explicit invoice uploads */}
+          {showInvoiceFields && (
             <div>
               <label
                 style={{
@@ -756,138 +806,170 @@ export const AddMaterialModal: React.FC<AddMaterialModalProps> = ({
                 <span style={fieldHintStyle}>Not detected / optional</span>
               )}
             </div>
-          </div>
+          )}
 
-          {/* 5. GST Tax Invoice & Rate Row */}
+          {/* Integrated GST and Price Summary Panel */}
           <div
             style={{
-              background: 'var(--bg-surface-subtle)',
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-surface)',
               border: '2px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
               boxShadow: 'var(--shadow-hard-xs)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '10px',
+              padding: '14px 16px',
               boxSizing: 'border-box',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
             }}
           >
-            <label
+            {/* Top row: GST Checkbox and inline Rate Selector */}
+            <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                userSelect: 'none',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px',
               }}
             >
-              <input
-                type="checkbox"
-                checked={currentItem.isGSTInvoice}
-                onChange={(e) => updateCurrentItem({ isGSTInvoice: e.target.checked })}
+              <label
                 style={{
-                  width: '18px',
-                  height: '18px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
                   cursor: 'pointer',
-                  accentColor: 'var(--color-primary, #C9A3F5)',
-                }}
-              />
-              <span>Is GST Tax Invoice</span>
-            </label>
-
-            {currentItem.isGSTInvoice && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  Rate (%):
-                </span>
-                <select
-                  value={currentItem.gstRate}
-                  onChange={(e) =>
-                    updateCurrentItem({
-                      gstRate: e.target.value === '' ? '' : Number(e.target.value),
-                    })
-                  }
-                  style={{
-                    height: '34px',
-                    padding: '0 8px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1.5px solid var(--color-border)',
-                    background: 'var(--bg-surface)',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    outline: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value={18}>18%</option>
-                  <option value={28}>28%</option>
-                  <option value={12}>12%</option>
-                  <option value={5}>5%</option>
-                  <option value={0}>0%</option>
-                </select>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                  (+₹{gstAmount.toLocaleString('en-IN')})
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* 6. Dynamic Total Amount Calculation Card */}
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              border: '2px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-hard-xs)',
-              padding: '12px 14px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              boxSizing: 'border-box',
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: '11px',
+                  fontSize: '13px',
                   fontWeight: 700,
-                  color: 'var(--text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
+                  color: 'var(--text-primary)',
+                  userSelect: 'none',
                 }}
               >
-                Calculated Total
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Subtotal: ₹{subtotal.toLocaleString('en-IN')}{' '}
-                {currentItem.isGSTInvoice
-                  ? `+ GST (${numericGstRate}%): ₹${gstAmount.toLocaleString('en-IN')}`
-                  : '(Tax Exempt)'}
-              </div>
+                <input
+                  type="checkbox"
+                  checked={currentItem.isGSTInvoice}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    updateCurrentItem({
+                      isGSTInvoice: checked,
+                      gstRate: checked
+                        ? typeof currentItem.gstRate === 'number' && !isNaN(currentItem.gstRate)
+                          ? currentItem.gstRate
+                          : 18
+                        : currentItem.gstRate,
+                    });
+                  }}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    cursor: 'pointer',
+                    accentColor: '#2563EB',
+                  }}
+                />
+                <span>Apply GST</span>
+              </label>
+
+              {/* Rate selector only shown when GST is enabled */}
+              {currentItem.isGSTInvoice && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                    GST Rate:
+                  </span>
+                  <select
+                    value={
+                      typeof currentItem.gstRate === 'number' && !isNaN(currentItem.gstRate)
+                        ? currentItem.gstRate
+                        : 18
+                    }
+                    onChange={(e) =>
+                      updateCurrentItem({
+                        gstRate: e.target.value === '' ? '' : Number(e.target.value),
+                      })
+                    }
+                    aria-label="GST Rate"
+                    style={{
+                      height: '32px',
+                      padding: '0 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1.5px solid var(--color-border)',
+                      background: 'var(--bg-surface)',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                      outline: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value={18}>18%</option>
+                    <option value={28}>28%</option>
+                    <option value={12}>12%</option>
+                    <option value={5}>5%</option>
+                    <option value={0}>0%</option>
+                  </select>
+                </div>
+              )}
             </div>
 
-            <div style={{ textAlign: 'right' }}>
-              <div
-                style={{
-                  fontSize: '20px',
-                  fontWeight: 900,
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-serif)',
-                }}
-              >
-                {currentItem.price !== '' && currentItem.qtyValue !== ''
-                  ? `₹${netTotal.toLocaleString('en-IN')}`
-                  : '₹--'}
+            {/* Bottom row: Breakdown & Prominent Final Total */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'space-between',
+                gap: '12px',
+                paddingTop: '10px',
+                borderTop: '1.5px solid var(--color-border)',
+              }}
+            >
+              {/* Subtotal & GST amount breakdown */}
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  <span>Subtotal: </span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                    {hasCalculableTotal ? `₹${formatCurrency(subtotal)}` : '—'}
+                  </span>
+                </div>
+                {currentItem.isGSTInvoice && (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                      marginTop: '2px',
+                    }}
+                  >
+                    <span>GST ({effectiveGstRate}%): </span>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                      {hasCalculableTotal ? `+₹${formatCurrency(gstAmount)}` : '—'}
+                    </span>
+                  </div>
+                )}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                {currentItem.price !== '' && currentItem.qtyValue !== ''
-                  ? 'Net Total'
-                  : 'Enter price & quantity'}
+
+              {/* Bold, prominent final total */}
+              <div style={{ textAlign: 'right' }}>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  {currentItem.isGSTInvoice ? 'Total (incl. GST)' : 'Total'}
+                </div>
+                <div
+                  style={{
+                    fontSize: '22px',
+                    fontWeight: 900,
+                    color: 'var(--text-primary)',
+                    fontFamily: 'var(--font-serif)',
+                    lineHeight: '1.2',
+                    marginTop: '2px',
+                  }}
+                >
+                  {hasCalculableTotal ? `₹${formatCurrency(netTotal)}` : '—'}
+                </div>
               </div>
             </div>
           </div>

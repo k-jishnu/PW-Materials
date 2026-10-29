@@ -25,7 +25,7 @@ const mapPurchaseToMaterial = (p: PurchaseRecord): Material => ({
   item: { value: p.item, confidence: 'high', confidenceScore: p.confidenceAverage || 1.0, source: p.aiRecognized ? 'ai' : 'manual' },
   vendor: { value: p.vendor, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
   price: { value: p.unitPrice, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
-  company: { value: p.company || 'PW', confidence: 'high', confidenceScore: 1.0, source: 'manual' },
+  company: { value: p.company || '', confidence: 'high', confidenceScore: 1.0, source: 'manual' },
   quantity: { value: { value: p.quantity, unit: p.unit }, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
   gst: { rate: p.gstRate, isGSTInvoice: p.isGSTInvoice, confidence: 'high', confidenceScore: 1.0, source: 'manual' },
   photoUrl: p.photoUrl,
@@ -94,7 +94,7 @@ export const useMaterials = (onPurchaseAdded?: (record: PurchaseRecord) => void)
         const res = insertMaterial({
           name: itemData.item,
           vendor: itemData.vendor || '',
-          company: itemData.company || 'PW',
+          company: itemData.company || '',
           price: numericPrice,
           quantity: numericQty,
           unit: itemData.qtyUnit || "no's",

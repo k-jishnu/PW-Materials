@@ -128,10 +128,22 @@ export class GatewayAPI {
     const firstItem = structured.line_items?.[0];
     const itemName = structured.item_name || firstItem?.item_name || 'Captured Material';
     const rate = structured.rate !== undefined ? structured.rate : (firstItem?.unit_price ?? null);
-    const vendorName = structured.vendor !== undefined ? structured.vendor : (structured.supplier_name ?? null);
+    const isMaterialPhoto = structured.document_type === 'material_photo';
+    
+    // For material photos: vendor = product brand/manufacturer extracted from image
+    // For invoices: vendor = supplier/vendor company from invoice
+    const vendorName = isMaterialPhoto
+      ? (structured.vendor ?? null)  // only the product brand, never fall back to supplier_name
+      : (structured.vendor !== undefined ? structured.vendor : (structured.supplier_name ?? null));
+    
     const quantityVal = structured.quantity !== undefined ? structured.quantity : (firstItem?.quantity ?? null);
     const gstRateVal = structured.gst_tax !== undefined ? structured.gst_tax : null;
     const isGST = gstRateVal !== null ? (gstRateVal > 0) : ((firstItem?.tax_amount ?? 0) > 0 || (structured.tax_amount ?? 0) > 0);
+    
+    // Unit: prefer top-level unit, then first line item unit, then default based on doc type
+    const unitVal = (firstItem?.unit && firstItem.unit !== 'Nos' && firstItem.unit !== 'nos')
+      ? firstItem.unit
+      : 'nos';
 
     return {
       documentType: structured.document_type,
@@ -154,16 +166,19 @@ export class GatewayAPI {
         confidence: gstRateVal !== null ? 0.9 : 0.0,
       },
       company: {
+        // For material photos: company is the product brand/manufacturer (same as vendor)
+        // For invoices: company is the company_ref from the document
+        // Never auto-set to 'PW' here — the UI handles the PW company separately
         name: structured.company_ref || '',
         confidence: structured.company_ref ? 0.95 : 0.0,
       },
       quantity: {
         value: quantityVal,
-        unit: firstItem?.unit || 'Nos',
+        unit: unitVal,
         confidence: quantityVal !== null ? 0.95 : 0.0,
       },
-      invoiceNumber: structured.invoice_number || undefined,
-      invoiceDate: structured.invoice_date || undefined,
+      invoiceNumber: isMaterialPhoto ? undefined : (structured.invoice_number || undefined),
+      invoiceDate: isMaterialPhoto ? undefined : (structured.invoice_date || undefined),
       dueDate: structured.due_date || undefined,
       subtotal: structured.subtotal ?? undefined,
       taxAmount: structured.tax_amount ?? undefined,

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Material } from '@/types';
 import { ConfidenceBadge } from './ConfidenceBadge';
-import { Edit3, Copy, Trash2, Check, ArrowRight, ShieldCheck, Eye } from 'lucide-react';
+import { Edit3, Copy, Trash2, ArrowRight, Eye, Check } from 'lucide-react';
 import { PhotoThumbnail } from './PhotoThumbnail';
 
 interface MaterialCardProps {
@@ -272,112 +272,87 @@ export const MaterialCard: React.FC<MaterialCardProps> = ({
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>GST Tax:</span>
-              <span className={`badge ${hasGst && material.gst.isGSTInvoice ? 'badge-success' : 'badge-neutral'}`}>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                fontSize: '11px',
+                fontWeight: 600,
+                padding: '2px 6px',
+                borderRadius: '4px',
+                background: hasGst && material.gst.isGSTInvoice ? '#D1FAE5' : '#F1F5F9',
+                color: hasGst && material.gst.isGSTInvoice ? '#065F46' : '#64748B',
+                border: `1px solid ${hasGst && material.gst.isGSTInvoice ? '#6EE7B7' : '#CBD5E1'}`,
+              }}>
                 {hasGst
                   ? (material.gst.isGSTInvoice
                       ? `GST ${material.gst.rate}% (+₹${gstAmount.toLocaleString('en-IN')})`
-                      : `GST ${material.gst.rate}% (Exempt)`)
-                  : '[Empty - Enter GST]'}
+                      : `${material.gst.rate}% Exempt`)
+                  : '[Enter GST]'}
               </span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Company Ref:</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{material.company.value || 'PW'}</span>
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Brand / Mfr:</span>
+              <span style={{ color: material.company.value && material.company.value !== 'PW' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: 700, fontSize: '12px' }}>{material.company.value || '—'}</span>
             </div>
           </div>
 
-          {/* Card Actions: Commit, Edit, Duplicate, Delete */}
+          {/* Card Actions: Edit, Duplicate, Delete (Saved badge removed - all records are saved) */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '8px',
+            justifyContent: 'flex-end',
+            gap: '4px',
             paddingTop: '10px',
             borderTop: '1.5px solid var(--color-border)',
           }}>
-            {material.status === 'saved' ? (
-              <div
-                className="badge badge-success"
-                style={{
-                  flex: 1,
-                  height: '36px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  fontSize: '13px',
-                }}
-              >
-                <Check size={14} strokeWidth={2.5} />
-                <span>Saved</span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onCommit(material.id)}
-                className="btn btn-success btn-sm"
-                style={{
-                  flex: 1,
-                  height: '36px',
-                  fontSize: '13px',
-                }}
-                title="Save to purchases"
-              >
-                <Check size={14} strokeWidth={2.5} />
-                <span>Save to purchases</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => onViewPhoto?.(material)}
+              className="btn-icon"
+              style={{ width: '36px', height: '36px', color: material.photoUrl ? '#202020' : '#94A3B8' }}
+              title={material.photoUrl ? 'View original photo' : 'No photo attached'}
+              aria-label="View photo"
+            >
+              <Eye size={15} strokeWidth={2.2} />
+            </button>
 
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <button
-                type="button"
-                onClick={() => onViewPhoto?.(material)}
-                className="btn-icon"
-                style={{ width: '36px', height: '36px', color: material.photoUrl ? '#202020' : '#94A3B8' }}
-                title={material.photoUrl ? 'View original photo / invoice' : 'No photo attached'}
-                aria-label="View photo"
-              >
-                <Eye size={15} strokeWidth={2.2} />
-              </button>
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="btn-icon"
+              style={{ width: '36px', height: '36px' }}
+              title="Edit item"
+              aria-label="Edit item"
+            >
+              <Edit3 size={15} strokeWidth={2.2} />
+            </button>
 
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="btn-icon"
-                style={{ width: '36px', height: '36px' }}
-                title="Edit item"
-                aria-label="Edit item"
-              >
-                <Edit3 size={15} strokeWidth={2.2} />
-              </button>
+            <button
+              type="button"
+              onClick={() => onDuplicate(material.id)}
+              className="btn-icon"
+              style={{ width: '36px', height: '36px' }}
+              title="Duplicate item"
+              aria-label="Duplicate item"
+            >
+              <Copy size={15} strokeWidth={2.2} />
+            </button>
 
-              <button
-                type="button"
-                onClick={() => onDuplicate(material.id)}
-                className="btn-icon"
-                style={{ width: '36px', height: '36px' }}
-                title="Duplicate item"
-                aria-label="Duplicate item"
-              >
-                <Copy size={15} strokeWidth={2.2} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm(`Delete "${material.item.value}"?`)) {
-                    onDelete(material.id);
-                  }
-                }}
-                className="btn-icon"
-                style={{ width: '36px', height: '36px', color: '#202020' }}
-                title="Delete item"
-                aria-label="Delete item"
-              >
-                <Trash2 size={15} strokeWidth={2.2} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Delete "${material.item.value}"?\n\nThis action cannot be undone.`)) {
+                  onDelete(material.id);
+                }
+              }}
+              className="btn-icon"
+              style={{ width: '36px', height: '36px', color: '#202020' }}
+              title="Delete item"
+              aria-label="Delete item"
+            >
+              <Trash2 size={15} strokeWidth={2.2} />
+            </button>
           </div>
         </>
       )}

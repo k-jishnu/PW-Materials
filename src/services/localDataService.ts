@@ -130,7 +130,7 @@ export function insertMaterial(materialData: {
     item: materialData.name.trim(),
     sku,
     vendor: materialData.vendor?.trim() || '',
-    company: materialData.company?.trim() || 'PW',
+    company: materialData.company?.trim() || '',
     quantity: typeof materialData.quantity === 'number' && !isNaN(materialData.quantity) ? materialData.quantity : quantity,
     unit: materialData.unit || "no's",
     unitPrice,

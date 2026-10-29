@@ -44,16 +44,25 @@ Analyze the image and return strictly valid JSON matching the schema below.
 
 2. EXTRACTION RULES FOR PHYSICAL MATERIAL PHOTOS:
 When the image is a photo of physical construction material, extract and return these exact fields:
-- item_name: Predict the most likely material name from the image. Use visible labels, packaging, markings, and visual characteristics (e.g., "UltraTech 53 Grade Portland Cement", "Fe550 TMT Rebar 12mm", "Finolex 2.5 sq mm PVC Insulated Copper Wire", "Red Clay Bricks"). If uncertain, provide a best-effort prediction for the user to edit.
-- rate: Extract the unit price only if explicitly visible or mentioned on the product packaging, price tag, or label. If not provided or not visible, return null. NEVER invent, fabricate, or assume a price.
-- vendor: Identify the product's manufacturer or brand/company from visible packaging, labels, or logos (e.g., "UltraTech", "Tata Tiscon", "Supreme", "Havells"). Do not confuse the manufacturer with a third-party seller or supplier. If unknown or not clearly visible, return null. Never use placeholder strings like "Unknown", "N/A", or "Not found".
-- quantity: Count the visible items in the picture when they can be distinguished reliably. Return the count as a number (e.g., 1, 5, 20). If the image shows loose, overlapping, piled, or uncountable materials (such as loose gravel, bulk sand, or a tangled rebar pile), return null instead of guessing. Do not assume quantity from packaging unless the quantity is clearly printed.
-- gst_tax: Do not guess or calculate GST from the image. Return null and let the user enter or edit it manually. Extract a GST rate (as a numeric percentage, e.g. 18) only if it is explicitly visible and clearly associated with the item in the image.
-- company_ref: Default to "PW". This is a fixed application default, not an AI prediction.
+- item_name: Identify the actual product name from visible labels, packaging, markings, and visual characteristics. Include all technically meaningful specifications: cable cross-section (e.g. 6.0 sq.mm), voltage rating, product series, material type, grade (e.g. "GM FR 6.0 sq.mm PVC Insulated Cable", "UltraTech 53 Grade Portland Cement", "Fe550 TMT Rebar 12mm"). Preserve technical specifications exactly as printed. If uncertain, provide a best-effort prediction for the user to edit.
+- rate: Extract the unit price ONLY if explicitly printed on the product packaging, price tag, or label. If not visible, return null. NEVER invent, fabricate, estimate, or assume a price.
+- vendor: CRITICAL - Identify the PRODUCT MANUFACTURER OR BRAND from visible packaging, product labels, printed cable markings, or logos. For example, if packaging says "GM" or "GM Cables" or "Goldmedal", return "GM". If it says "Havells", return "Havells". This is the PRODUCT BRAND, NOT the shop or wholesaler where it was purchased. Return null if the brand is not clearly visible. Never use "PW" as a manufacturer unless the product is literally manufactured by PW.
+- supplier_name: ALWAYS return null for material photos. The supplier/vendor who sold the item is NOT extractable from a product photo. Leave this for the user to enter manually.
+- quantity: Count visible items when clearly distinguishable. For cables and wires, return 1 unless multiple distinct rolls or coils are visible. Return null if uncountable or ambiguous. Do NOT guess.
+- unit: Return the appropriate selling unit based on the material type:
+  - Electrical cables, wires: "metres" (or "rolls" if a complete roll is shown)
+  - Bags of cement, sand: "bags"
+  - Steel rebar, pipes: "pieces" or "kg"
+  - Bricks, tiles: "pieces"
+  - Liquids, paints: "litres"
+  - Default if unknown: "nos"
+- gst_tax: Return null. Do not guess or calculate GST. Only extract if explicitly printed.
+- company_ref: Return null. Do not set a default company name.
 
 3. INVOICE / RECEIPT EXTRACTION RULES:
 When the image is an invoice or receipt, preserve full invoice recognition behavior:
-- supplier_name: Vendor or supplier company name, or null.
+- supplier_name: The vendor/seller/shop company name from the invoice header, or null.
+- vendor: The manufacturer/brand of the primary product, or null.
 - invoice_number: Invoice identifier or bill number, or null.
 - invoice_date: Date in YYYY-MM-DD format, or null.
 - due_date: Due date in YYYY-MM-DD format, or null.
@@ -78,10 +87,10 @@ When the image is an invoice or receipt, preserve full invoice recognition behav
 - Map the primary line item to the required top-level fields:
   - item_name: Name of the primary item.
   - rate: Unit price of the primary item, or null.
-  - vendor: Supplier/vendor company name, or null.
+  - vendor: Manufacturer/brand of the primary item, or null.
   - quantity: Quantity of primary item, or null.
   - gst_tax: Explicit or inferred GST rate percentage (e.g. 18), or null.
-  - company_ref: "PW".
+  - company_ref: Return null.
 
 4. REQUIRED OUTPUT FORMAT:
 Return valid JSON only, matching this structure:
@@ -91,8 +100,9 @@ Return valid JSON only, matching this structure:
   "rate": null,
   "vendor": null,
   "quantity": null,
+  "unit": null,
   "gst_tax": null,
-  "company_ref": "PW",
+  "company_ref": null,
   "supplier_name": null,
   "invoice_number": null,
   "invoice_date": null,
@@ -106,10 +116,13 @@ Return valid JSON only, matching this structure:
 }
 
 IMPORTANT SAFEGUARDS:
+- NEVER set company_ref, supplier_name, or vendor to "PW" for a material photo. PW is the application owner, not a product manufacturer.
 - Never fabricate prices, GST, vendor names, or quantities.
-- Use actual extracted values where supported by evidence.
+- Use actual extracted values where supported by evidence in the image.
 - Use null for missing or uncertain values, NOT strings such as "Unknown", "N/A", or "Not found".
-- Return valid JSON only without markdown formatting.`;
+- Return valid JSON only without markdown formatting.
+- For material_photo documents: supplier_name MUST always be null.
+- For material_photo documents: company_ref MUST be null (do not default to PW).`;
 
 function cleanStringOrNull(val: any): string | null {
   if (typeof val !== 'string') return null;
@@ -145,15 +158,25 @@ export function validateAndNormalizeRecognition(rawJson: any): StructuredRecogni
   // Top-level mapped fields with null-safety and sanitization
   const rawItemName = cleanStringOrNull(rawJson.item_name) ||
     (Array.isArray(rawJson.line_items) && rawJson.line_items[0] ? cleanStringOrNull(rawJson.line_items[0].item_name) : null);
-  const item_name = rawItemName || (document_type === 'material_photo' ? 'Predicted Material' : 'Invoice Item');
+  const item_name = rawItemName || (document_type === 'material_photo' ? 'Identified Material' : 'Invoice Item');
 
   const rate = cleanNumberOrNull(rawJson.rate !== undefined ? rawJson.rate : rawJson.line_items?.[0]?.unit_price);
-  const vendor = cleanStringOrNull(rawJson.vendor) || cleanStringOrNull(rawJson.supplier_name);
+  // For material_photo: vendor = product brand/manufacturer (NOT supplier)
+  // For invoice: vendor = supplier company from invoice header
+  const rawVendor = document_type === 'material_photo'
+    ? cleanStringOrNull(rawJson.vendor) // brand/manufacturer only, never fall back to supplier_name
+    : (cleanStringOrNull(rawJson.vendor) || cleanStringOrNull(rawJson.supplier_name));
+  // Sanitize: reject 'PW' as a manufacturer for material photos (PW is the app owner, not a product brand)
+  const vendor = (rawVendor && rawVendor.toUpperCase() === 'PW' && document_type === 'material_photo') ? null : rawVendor;
   const quantity = cleanNumberOrNull(rawJson.quantity !== undefined ? rawJson.quantity : rawJson.line_items?.[0]?.quantity);
   const gst_tax = cleanNumberOrNull(rawJson.gst_tax);
+  // company_ref: Do NOT default to 'PW' — keep null so the UI can handle it properly
   const company_ref = cleanStringOrNull(rawJson.company_ref) || cleanStringOrNull(rawJson.company) || null;
 
-  const supplier_name = cleanStringOrNull(rawJson.supplier_name) || vendor;
+  // supplier_name: for material_photo this is always null (user must enter manually)
+  const supplier_name = document_type === 'material_photo'
+    ? null
+    : (cleanStringOrNull(rawJson.supplier_name) || cleanStringOrNull(rawJson.vendor));
   const invoice_number = cleanStringOrNull(rawJson.invoice_number);
 
   // Date validation (YYYY-MM-DD or parseable)
@@ -187,7 +210,10 @@ export function validateAndNormalizeRecognition(rawJson: any): StructuredRecogni
     if (!item || typeof item !== 'object') continue;
     const item_name_clean = cleanStringOrNull(item.item_name) || 'Unspecified Material';
     const item_qty = cleanNumberOrNull(item.quantity);
-    const unit = typeof item.unit === 'string' && item.unit.trim() ? item.unit.trim() : 'Nos';
+    // Use the top-level unit from the main object if available (material_photo level), else item unit
+    const rawUnit = typeof item.unit === 'string' && item.unit.trim() ? item.unit.trim() : null;
+    const topLevelUnit = typeof rawJson.unit === 'string' && rawJson.unit.trim() ? rawJson.unit.trim() : null;
+    const unit = rawUnit || topLevelUnit || 'nos';
     const item_rate = cleanNumberOrNull(item.unit_price);
     const item_tax = cleanNumberOrNull(item.tax_amount);
     const item_total = cleanNumberOrNull(item.line_total) ??
@@ -210,12 +236,14 @@ export function validateAndNormalizeRecognition(rawJson: any): StructuredRecogni
   }
 
   // If no items were extracted, construct a primary line item from top-level fields
+  // Use the top-level unit from rawJson if provided (especially for material_photo type)
+  const topUnit = typeof rawJson.unit === 'string' && rawJson.unit.trim() ? rawJson.unit.trim() : 'nos';
   if (line_items.length === 0) {
     line_items.push({
       item_name,
       description: notes || null,
       quantity,
-      unit: 'Nos',
+      unit: topUnit,
       unit_price: rate,
       tax_amount: tax_amount || null,
       line_total: total_amount || (rate !== null && quantity !== null ? rate * quantity : null),

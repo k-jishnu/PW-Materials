@@ -517,7 +517,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
                   className="btn btn-secondary btn-sm"
                   style={{ height: '34px' }}
                 >
-                  <FileUp size={14} /> Upload Invoice Instead
+                  <FileUp size={14} /> Upload photo Instead
                 </button>
               </div>
             </div>
@@ -546,7 +546,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
                 className="btn btn-primary btn-sm"
                 style={{ height: '34px' }}
               >
-                <Upload size={14} /> Upload Invoice File
+                <Upload size={14} /> Upload photo File
               </button>
             </div>
           )}
@@ -661,10 +661,10 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
                 padding: '0 8px',
                 minWidth: 0,
               }}
-              aria-label="Upload invoice"
+              aria-label="Upload photo"
             >
               <Upload size={16} />
-              <span>Upload invoice</span>
+              <span>Upload photo</span>
             </button>
           </div>
         </div>
