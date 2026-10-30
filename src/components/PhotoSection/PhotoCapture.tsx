@@ -1,15 +1,53 @@
 import React, { useState } from 'react';
-import { Camera, Upload, RotateCw, X, Sparkles, AlertCircle, RefreshCw, FileUp, FileText } from 'lucide-react';
+import { Camera, Upload, RotateCw, X, Sparkles, AlertCircle, RefreshCw, FileUp, FileText, CheckCircle2 } from 'lucide-react';
 import { useCamera } from '@/hooks/useCamera';
 
 interface PhotoCaptureProps {
   onPhotoProcessed: (imageBase64: string) => Promise<void>;
   isProcessing: boolean;
   processingProgress: number;
-  processingStage?: 'idle' | 'preparing' | 'sending' | 'extracting' | 'processing' | 'complete' | 'error';
+  processingStage?: string;
   processingStatusMessage?: string;
   processingElapsedSeconds?: number;
   onCancelProcessing?: () => void;
+  recognitionError?: string | null;
+  onClearError?: () => void;
+  onManualEntryWithPhoto?: (photoUrl: string) => void;
+}
+
+function getStageBadgeLabel(stage?: string): string {
+  switch (stage) {
+    case 'preparing':
+      return 'Preparing image';
+    case 'validating':
+      return 'Validating image';
+    case 'connecting':
+      return 'Connecting to AI';
+    case 'analyzing':
+      return 'Analyzing material';
+    case 'extracting':
+      return 'Extracting details';
+    case 'validating_extracted':
+      return 'Validating details';
+    case 'preparing_review':
+      return 'Preparing review';
+    case 'complete':
+      return 'Completed';
+    default:
+      return 'Processing';
+  }
+}
+
+function formatElapsed(seconds: number = 0): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s < 10 ? '0' : ''}${s} elapsed`;
+}
+
+function isRetryMessage(msg?: string): boolean {
+  if (!msg) return false;
+  const l = msg.toLowerCase();
+  return l.includes('retrying') || l.includes('interruption') || l.includes('connection');
 }
 
 export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
@@ -20,6 +58,9 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
   processingStatusMessage,
   processingElapsedSeconds,
   onCancelProcessing,
+  recognitionError,
+  onClearError,
+  onManualEntryWithPhoto,
 }) => {
   const {
     videoRef,
@@ -249,8 +290,295 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
         </div>
       )}
 
-      {/* Captured / Uploaded Image Preview */}
-      {preview && !isCapturing && (
+      {/* ------------------------------------------------------------- */}
+      {/* 1. DEDICATED FIXED-SIZE EXTRACTION PANEL (When isProcessing)   */}
+      {/* ------------------------------------------------------------- */}
+      {isProcessing && (
+        <div
+          data-testid="extraction-container"
+          style={{
+            width: '100%',
+            maxWidth: '520px',
+            minHeight: '380px',
+            maxHeight: '480px',
+            margin: '0 auto 16px',
+            padding: '24px 20px',
+            background: 'var(--bg-surface)',
+            border: '2.5px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-hard)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxSizing: 'border-box',
+          }}
+        >
+          {/* TOP: Small thumbnail & Header */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+            {preview && (
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: 'var(--radius-md)',
+                  overflow: 'hidden',
+                  border: '2px solid var(--color-border)',
+                  background: 'var(--bg-surface-subtle)',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: 'var(--shadow-hard-xs)',
+                  flexShrink: 0,
+                }}
+              >
+                {preview.startsWith('data:application/pdf') ? (
+                  <FileText size={28} strokeWidth={2.5} color="var(--color-primary)" />
+                ) : (
+                  <img src={preview} alt="Material thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )}
+              </div>
+            )}
+            <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)', margin: '0 0 4px', fontFamily: 'var(--font-serif)' }}>
+              Recognizing material
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+              AI is identifying the product and its specifications.
+            </p>
+          </div>
+
+          {/* MIDDLE: Stage badge, Progress bar, Metrics */}
+          <div style={{ width: '100%', maxWidth: '360px', margin: '20px 0' }}>
+            {/* Current stage badge */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  padding: '3px 10px',
+                  borderRadius: 'var(--radius-pill)',
+                  background: 'var(--color-logo-bg)',
+                  color: '#202020',
+                  border: '1.5px solid var(--color-border)',
+                }}
+              >
+                {getStageBadgeLabel(processingStage)}
+              </span>
+            </div>
+
+            {/* Stable Progress Bar */}
+            <div
+              style={{
+                width: '100%',
+                height: '10px',
+                background: '#E2E8F0',
+                borderRadius: 'var(--radius-pill)',
+                overflow: 'hidden',
+                border: '1.5px solid var(--color-border)',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)',
+              }}
+            >
+              <div
+                style={{
+                  width: `${Math.min(100, Math.max(5, processingProgress))}%`,
+                  height: '100%',
+                  background: processingProgress === 100 ? 'var(--color-success)' : 'var(--color-primary)',
+                  transition: 'width 0.35s ease',
+                }}
+              />
+            </div>
+
+            {/* Percentage & Elapsed time row */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginTop: '8px',
+                fontSize: '12px',
+                color: 'var(--text-secondary)',
+                fontWeight: 600,
+              }}
+            >
+              <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{processingProgress}%</span>
+              <span>{formatElapsed(processingElapsedSeconds)}</span>
+            </div>
+          </div>
+
+          {/* BOTTOM: Status message container (fixed height to prevent layout jumps) & Cancel */}
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div
+              style={{
+                minHeight: '48px',
+                width: '100%',
+                maxWidth: '400px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '0 8px',
+                boxSizing: 'border-box',
+              }}
+            >
+              <p
+                style={{
+                  fontSize: '13px',
+                  lineHeight: 1.4,
+                  color: isRetryMessage(processingStatusMessage) ? '#B45309' : 'var(--text-secondary)',
+                  fontWeight: isRetryMessage(processingStatusMessage) ? 700 : 500,
+                  margin: 0,
+                  overflowWrap: 'break-word',
+                }}
+              >
+                {processingStatusMessage || 'Identifying material and specifications...'}
+              </p>
+            </div>
+
+            {onCancelProcessing && (
+              <button
+                type="button"
+                onClick={onCancelProcessing}
+                className="btn btn-outline btn-sm"
+                style={{
+                  marginTop: '12px',
+                  height: '32px',
+                  fontSize: '12px',
+                  borderColor: 'var(--color-border)',
+                }}
+              >
+                Cancel extraction
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* 2. RECOGNITION FAILURE ERROR PANEL (When error & !processing)  */}
+      {/* ------------------------------------------------------------- */}
+      {recognitionError && !isProcessing && (
+        <div
+          data-testid="recognition-error-panel"
+          style={{
+            width: '100%',
+            maxWidth: '520px',
+            margin: '0 auto 16px',
+            padding: '24px 20px',
+            background: 'var(--bg-surface)',
+            border: '2.5px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-hard)',
+            boxSizing: 'border-box',
+          }}
+        >
+          {/* Header & thumbnail */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+            {preview && (
+              <div
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: 'var(--radius-md)',
+                  overflow: 'hidden',
+                  border: '2px solid var(--color-border)',
+                  background: 'var(--bg-surface-subtle)',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {preview.startsWith('data:application/pdf') ? (
+                  <FileText size={26} strokeWidth={2.5} color="var(--color-primary)" />
+                ) : (
+                  <img src={preview} alt="Material thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )}
+              </div>
+            )}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                <AlertCircle size={18} color="#DC2626" strokeWidth={2.5} />
+                <h4 style={{ fontSize: '16px', fontWeight: 900, color: 'var(--text-primary)', margin: 0, fontFamily: 'var(--font-serif)' }}>
+                  Material recognition could not be completed
+                </h4>
+              </div>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+                Your photo is preserved. You can retry recognition or enter details manually.
+              </p>
+            </div>
+          </div>
+
+          {/* Sanitized error explanation note */}
+          <div
+            style={{
+              background: '#FEF2F2',
+              border: '1.5px solid #FCA5A5',
+              borderRadius: 'var(--radius-md)',
+              padding: '10px 14px',
+              marginBottom: '18px',
+              fontSize: '12px',
+              color: '#991B1B',
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>Status:</strong> {recognitionError}
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearError?.();
+                  if (preview) onPhotoProcessed(preview);
+                }}
+                className="btn btn-primary"
+                style={{ flex: 1, minWidth: '160px', height: '40px' }}
+              >
+                <RefreshCw size={15} />
+                <span>Retry recognition</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (preview && onManualEntryWithPhoto) {
+                    onManualEntryWithPhoto(preview);
+                  }
+                }}
+                className="btn btn-secondary"
+                style={{ flex: 1, minWidth: '160px', height: '40px' }}
+              >
+                <FileText size={15} />
+                <span>Enter details manually</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                onClearError?.();
+                setPreview(null);
+                handleTakePhoto();
+              }}
+              className="btn btn-outline"
+              style={{ width: '100%', height: '36px', fontSize: '13px' }}
+            >
+              <Camera size={14} />
+              <span>Take another photo</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* 3. CAPTURED / UPLOADED PREVIEW (When !isProcessing & !error)   */}
+      {/* ------------------------------------------------------------- */}
+      {preview && !isCapturing && !isProcessing && !recognitionError && (
         <div style={{
           position: 'relative',
           width: '100%',
@@ -296,142 +624,45 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
           ) : (
             <img
               src={preview}
-              alt="Invoice preview"
+              alt="Material preview"
               style={{ width: '100%', maxHeight: '280px', objectFit: 'contain', display: 'block', background: 'var(--bg-surface-subtle)' }}
             />
           )}
 
-          {/* Processing Overlay with Progress bar */}
-          {isProcessing && (
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(32, 32, 32, 0.94)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#FFFFFF',
-              padding: '24px',
-              textAlign: 'center',
-              zIndex: 15,
-            }}>
-              <div className="animate-spin" style={{ fontSize: '28px', marginBottom: '12px', color: 'var(--color-yellow)' }}>
-                ⟳
-              </div>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF', marginBottom: '4px', fontFamily: 'var(--font-serif)' }}>
-                {processingStage === 'preparing'
-                  ? 'Preparing document...'
-                  : processingStage === 'sending'
-                  ? 'Connecting to AI engine...'
-                  : processingStage === 'extracting'
-                  ? `AI model extracting details (${processingElapsedSeconds || 0}s)...`
-                  : processingStage === 'processing'
-                  ? 'Validating extracted numbers...'
-                  : processingStage === 'complete'
-                  ? 'Extraction complete!'
-                  : 'Extracting material details...'}
-              </h3>
-              <p style={{ fontSize: '13px', color: '#F4EBDD', marginBottom: '14px', maxWidth: '300px' }}>
-                {processingStatusMessage || 'Analyzing item name, vendor, tax rate, quantity, and price.'}
-              </p>
-
-              {/* Progress bar with active animation */}
-              <div style={{
-                width: '100%',
-                maxWidth: '260px',
-                height: '10px',
-                background: '#FFFFFF',
-                borderRadius: 'var(--radius-pill)',
-                overflow: 'hidden',
-                border: '1.5px solid var(--color-border)',
-                position: 'relative',
-              }}>
-                <div
-                  className={processingStage === 'extracting' ? 'progress-pulse' : ''}
-                  style={{
-                    width: `${Math.min(100, Math.max(5, processingProgress))}%`,
-                    height: '100%',
-                    background: processingStage === 'complete' ? 'var(--color-success)' : 'var(--color-teal)',
-                    transition: 'width 0.3s ease',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '6px' }}>
-                <span style={{ fontSize: '12px', color: '#F4EBDD', fontWeight: 700 }}>
-                  {processingProgress}%
-                </span>
-                <span style={{ fontSize: '12px', color: '#94A3B8' }}>•</span>
-                <span style={{ fontSize: '12px', color: '#F4EBDD' }}>
-                  {processingElapsedSeconds || 0}s elapsed
-                </span>
-              </div>
-
-              {/* Long-running message when elapsed >= 15s */}
-              {(processingElapsedSeconds || 0) >= 15 && (
-                <p style={{ fontSize: '11px', color: '#FDE047', marginTop: '10px', maxWidth: '280px' }}>
-                  Detailed documents with multiple line items require extra analysis. Still working...
-                </p>
-              )}
-
-              {/* Cancel button */}
-              {onCancelProcessing && (
-                <button
-                  type="button"
-                  onClick={onCancelProcessing}
-                  className="btn btn-outline btn-sm"
-                  style={{
-                    marginTop: '14px',
-                    height: '28px',
-                    padding: '0 12px',
-                    fontSize: '11px',
-                    color: '#FFFFFF',
-                    borderColor: 'rgba(255,255,255,0.4)',
-                    background: 'transparent',
-                  }}
-                >
-                  Cancel extraction
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Preview Action Buttons */}
-          {!isProcessing && (
-            <div style={{
-              padding: '12px 14px',
-              background: 'var(--bg-surface)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              borderTop: '2.5px solid var(--color-border)',
-            }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setPreview(null);
-                  handleTakePhoto();
-                }}
-                className="btn btn-secondary"
-                style={{ flex: 1 }}
-              >
-                <Camera size={15} />
-                <span>Retake</span>
-              </button>
+          <div style={{
+            padding: '12px 14px',
+            background: 'var(--bg-surface)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            borderTop: '2.5px solid var(--color-border)',
+            flexWrap: 'wrap',
+          }}>
+            <button
+              type="button"
+              onClick={() => {
+                setPreview(null);
+                handleTakePhoto();
+              }}
+              className="btn btn-secondary"
+              style={{ flex: 1, minWidth: '120px' }}
+            >
+              <Camera size={15} />
+              <span>Retake</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => onPhotoProcessed(preview)}
-                className="btn btn-primary"
-                style={{ flex: 1 }}
-              >
-                <Sparkles size={15} />
-                <span>Extract details</span>
-              </button>
-            </div>
-          )}
+            <button
+              type="button"
+              onClick={() => onPhotoProcessed(preview)}
+              className="btn btn-primary"
+              style={{ flex: 1, minWidth: '150px' }}
+            >
+              <Sparkles size={15} />
+              <span>Extract details</span>
+            </button>
+          </div>
         </div>
       )}
 

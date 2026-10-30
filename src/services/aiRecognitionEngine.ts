@@ -1,6 +1,28 @@
 // src/services/aiRecognitionEngine.ts
 // Secure server-side engine for OpenAI Vision document & material extraction
 
+export class AIRecognitionError extends Error {
+  statusCode: number;
+  code: string;
+  retryable: boolean;
+  retryAfter?: number;
+
+  constructor(
+    message: string,
+    statusCode: number = 500,
+    code: string = 'AI_RECOGNITION_ERROR',
+    retryable: boolean = false,
+    retryAfter?: number
+  ) {
+    super(message);
+    this.name = 'AIRecognitionError';
+    this.statusCode = statusCode;
+    this.code = code;
+    this.retryable = retryable;
+    this.retryAfter = retryAfter;
+  }
+}
+
 export interface ExtractedLineItem {
   item_name: string;
   description?: string | null;
@@ -281,11 +303,16 @@ export async function executeOpenAIVisionRecognition(
   modelName: string = 'gpt-4o-mini'
 ): Promise<StructuredRecognitionResult> {
   if (!apiKey || !apiKey.trim()) {
-    throw new Error('OPENAI_API_KEY is not configured on the server.');
+    throw new AIRecognitionError('OPENAI_API_KEY is not configured on the server.', 422, 'MISSING_API_KEY', false);
   }
 
   if (imageBase64.startsWith('data:application/pdf')) {
-    throw new Error('OpenAI Vision does not support PDF documents directly. Please upload an image format (JPEG, PNG, WebP) or configure GEMINI_API_KEY for native PDF invoice recognition.');
+    throw new AIRecognitionError(
+      'OpenAI Vision does not support PDF documents directly. Please upload an image format (JPEG, PNG, WebP) or configure GEMINI_API_KEY for native PDF invoice recognition.',
+      400,
+      'UNSUPPORTED_MEDIA_TYPE',
+      false
+    );
   }
 
   // Ensure clean data URL format for OpenAI
@@ -325,14 +352,23 @@ export async function executeOpenAIVisionRecognition(
     ],
   };
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey.trim()}`,
-    },
-    body: JSON.stringify(requestBody),
-  });
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey.trim()}`,
+      },
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(40000),
+    });
+  } catch (netErr: any) {
+    if (netErr.name === 'TimeoutError' || netErr.name === 'AbortError' || netErr.message?.includes('timeout')) {
+      throw new AIRecognitionError('OpenAI Vision request timed out after 40s.', 504, 'TIMEOUT', true);
+    }
+    throw new AIRecognitionError(`OpenAI Vision network error: ${netErr.message || 'Connection failed'}`, 503, 'UPSTREAM_UNAVAILABLE', true);
+  }
 
   if (!response.ok) {
     let errBody = '';
@@ -342,7 +378,21 @@ export async function executeOpenAIVisionRecognition(
     } catch {
       errBody = await response.text();
     }
-    throw new Error(`OpenAI Vision API error (${response.status}): ${errBody || response.statusText}`);
+    const status = response.status;
+    const retryAfter = parseInt(response.headers.get('retry-after') || '5', 10);
+    if (status === 401 || status === 403) {
+      throw new AIRecognitionError('OpenAI API authentication failed. Please verify OPENAI_API_KEY.', 401, 'AUTH_FAILED', false);
+    }
+    if (status === 429) {
+      throw new AIRecognitionError('OpenAI rate limit exceeded. Please wait a few moments before retrying.', 429, 'RATE_LIMIT_EXCEEDED', true, retryAfter);
+    }
+    if (status === 400) {
+      throw new AIRecognitionError(`OpenAI rejected input: ${errBody}`, 400, 'INVALID_INPUT', false);
+    }
+    if (status >= 500) {
+      throw new AIRecognitionError('OpenAI service temporarily unavailable. Please retry.', 502, 'UPSTREAM_UNAVAILABLE', true);
+    }
+    throw new AIRecognitionError(`OpenAI Vision API error (${status}): ${errBody}`, status, 'AI_PROVIDER_ERROR', false);
   }
 
   const data = await response.json();
@@ -350,14 +400,14 @@ export async function executeOpenAIVisionRecognition(
   const content = choice?.message?.content;
 
   if (!content) {
-    throw new Error('OpenAI returned an empty response.');
+    throw new AIRecognitionError('OpenAI returned an empty response.', 502, 'AI_RESPONSE_PARSE_ERROR', true);
   }
 
   let parsed: any;
   try {
     parsed = JSON.parse(content);
   } catch (e: any) {
-    throw new Error(`Failed to parse OpenAI JSON response: ${e.message}`);
+    throw new AIRecognitionError(`Failed to parse OpenAI JSON response: ${e.message}`, 502, 'AI_RESPONSE_PARSE_ERROR', true);
   }
 
   const validated = validateAndNormalizeRecognition(parsed);
@@ -375,7 +425,7 @@ export async function executeGeminiVisionRecognition(
   modelName: string = 'gemini-3.5-flash'
 ): Promise<StructuredRecognitionResult> {
   if (!apiKey || !apiKey.trim()) {
-    throw new Error('GEMINI_API_KEY is not configured on the server.');
+    throw new AIRecognitionError('GEMINI_API_KEY is not configured on the server.', 422, 'MISSING_API_KEY', false);
   }
 
   // Extract pure base64 data and mimeType
@@ -427,6 +477,8 @@ export async function executeGeminiVisionRecognition(
 
   let response: Response | null = null;
   let lastErr = '';
+  let lastStatus = 500;
+  let lastRetryAfter: number | undefined;
 
   for (const modelToTry of modelCandidates) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent?key=${apiKey.trim()}`;
@@ -437,7 +489,7 @@ export async function executeGeminiVisionRecognition(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(35000), // 35s per-model timeout prevents 5-minute freeze
+        signal: AbortSignal.timeout(35000), // 35s per-model timeout prevents freeze
       });
 
       if (response.ok) {
@@ -451,23 +503,46 @@ export async function executeGeminiVisionRecognition(
       } catch {
         errBody = await response.text();
       }
+      lastStatus = response.status;
+      lastRetryAfter = parseInt(response.headers.get('retry-after') || '5', 10);
       lastErr = `Gemini Vision API error (${response.status}): ${errBody || response.statusText}`;
+
+      // 401/403: Stop immediately, do not try other models with the same invalid key
+      if (response.status === 401 || response.status === 403) {
+        throw new AIRecognitionError('Gemini API key is invalid or unauthorized.', 401, 'AUTH_FAILED', false);
+      }
+
+      // 400: Input error (e.g. corrupt image) - do not retry
+      if (response.status === 400) {
+        throw new AIRecognitionError(`Invalid image content for Gemini Vision: ${errBody}`, 400, 'INVALID_INPUT', false);
+      }
+
+      // 429: Rate limit
+      if (response.status === 429) {
+        throw new AIRecognitionError('Gemini API rate limit exceeded. Please try again shortly.', 429, 'RATE_LIMIT_EXCEEDED', true, lastRetryAfter);
+      }
 
       // Only fallback on 503 (high demand) or 404 (model not found/deprecated)
       if (response.status !== 503 && response.status !== 404) {
-        throw new Error(lastErr);
+        throw new AIRecognitionError(lastErr, response.status, 'UPSTREAM_ERROR', false);
       }
     } catch (e: any) {
-      lastErr = e.message || String(e);
-      // If network error or fatal error not related to 503/404, throw
-      if (!lastErr.includes('503') && !lastErr.includes('404')) {
+      if (e instanceof AIRecognitionError) {
         throw e;
+      }
+      lastErr = e.message || String(e);
+      if (e.name === 'TimeoutError' || e.name === 'AbortError' || lastErr.includes('timeout')) {
+        throw new AIRecognitionError('Gemini Vision request timed out.', 504, 'TIMEOUT', true);
+      }
+      // If network error not related to 503/404, throw
+      if (!lastErr.includes('503') && !lastErr.includes('404')) {
+        throw new AIRecognitionError(`Gemini connection error: ${lastErr}`, 503, 'UPSTREAM_UNAVAILABLE', true);
       }
     }
   }
 
   if (!response || !response.ok) {
-    throw new Error(lastErr || 'Gemini Vision recognition failed.');
+    throw new AIRecognitionError(lastErr || 'Gemini Vision recognition failed.', lastStatus, 'UPSTREAM_UNAVAILABLE', true, lastRetryAfter);
   }
 
   const data = await response.json();
@@ -475,7 +550,7 @@ export async function executeGeminiVisionRecognition(
   const content = candidate?.content?.parts?.[0]?.text;
 
   if (!content) {
-    throw new Error('Gemini returned an empty response.');
+    throw new AIRecognitionError('Gemini returned an empty response.', 502, 'AI_RESPONSE_PARSE_ERROR', true);
   }
 
   // Strip markdown code fences if Gemini added them despite response_mime_type
@@ -490,7 +565,7 @@ export async function executeGeminiVisionRecognition(
   try {
     parsed = JSON.parse(cleaned);
   } catch (e: any) {
-    throw new Error(`Failed to parse Gemini JSON response: ${e.message}`);
+    throw new AIRecognitionError(`Failed to parse Gemini JSON response: ${e.message}`, 502, 'AI_RESPONSE_PARSE_ERROR', true);
   }
 
   const validated = validateAndNormalizeRecognition(parsed);

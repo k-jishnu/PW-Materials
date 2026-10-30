@@ -36,6 +36,9 @@ export const App: React.FC = () => {
   // Purchases are managed entirely via useMaterials -> localDataService
   const [purchases, setPurchases] = useState<PurchaseRecord[]>(() => getPurchases());
 
+  // Recognition error state for application-level error panel
+  const [recognitionError, setRecognitionError] = useState<string | null>(null);
+
   const handlePurchaseAdded = (record: PurchaseRecord) => {
     setPurchases((prev) => [record, ...prev.filter((p) => p.id !== record.id)]);
   };
@@ -74,6 +77,7 @@ export const App: React.FC = () => {
 
   // Called when camera photo is snapped or file is uploaded
   const handlePhotoProcessed = async (imageBase64: string) => {
+    setRecognitionError(null);
     try {
       const result = await recognize(imageBase64);
       const isMaterialPhoto = result.documentType === 'material_photo' || !result.documentType;
@@ -138,12 +142,40 @@ export const App: React.FC = () => {
       if (err.name === 'AbortError' || err.message?.includes('aborted') || err.message?.includes('cancelled')) {
         return; // User cancelled extraction or superseded
       }
-      alert(`AI Recognition Error: ${err.message || 'Failed to process image'}`);
+      // Never use browser alert() popups; store sanitized error message for application-level error panel
+      const safeMsg = err.message || 'Material recognition could not be completed.';
+      setRecognitionError(safeMsg);
     }
   };
 
   const handleOpenManualAdd = () => {
     setModalInitialData(null);
+    setIsAddModalOpen(true);
+  };
+
+  const handleManualEntryWithPhoto = (photoUrl: string) => {
+    setRecognitionError(null);
+    setModalInitialData({
+      items: [
+        {
+          item: '',
+          vendor: '',
+          company: '',
+          price: '',
+          qtyValue: 1,
+          qtyUnit: 'nos',
+          gstRate: 18,
+          isGSTInvoice: false,
+          date: new Date().toISOString().split('T')[0],
+          invoiceNumber: '',
+          photoUrl: photoUrl,
+          confidenceScore: 1.0,
+        },
+      ],
+      source: 'manual',
+      photoUrl: photoUrl,
+      documentType: 'material_photo',
+    });
     setIsAddModalOpen(true);
   };
 
@@ -193,6 +225,9 @@ export const App: React.FC = () => {
             processingStatusMessage={statusMessage}
             processingElapsedSeconds={elapsedSeconds}
             onCancelProcessing={cancelRecognition}
+            recognitionError={recognitionError}
+            onClearError={() => setRecognitionError(null)}
+            onManualEntryWithPhoto={handleManualEntryWithPhoto}
           />
         </div>
 

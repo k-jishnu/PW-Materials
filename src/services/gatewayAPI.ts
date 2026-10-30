@@ -1,5 +1,27 @@
-import { MaterialRecognitionResult, GatewayConfig } from '@/types';
-import { StructuredRecognitionResult } from './aiRecognitionEngine';
+import type { MaterialRecognitionResult, GatewayConfig } from '@/types';
+import type { StructuredRecognitionResult } from './aiRecognitionEngine';
+
+export class GatewayError extends Error {
+  status: number;
+  code: string;
+  retryable: boolean;
+  retryAfter?: number;
+
+  constructor(
+    message: string,
+    status: number = 500,
+    code: string = 'GATEWAY_ERROR',
+    retryable: boolean = false,
+    retryAfter?: number
+  ) {
+    super(message);
+    this.name = 'GatewayError';
+    this.status = status;
+    this.code = code;
+    this.retryable = retryable;
+    this.retryAfter = retryAfter;
+  }
+}
 
 const CONFIG_STORAGE_KEY = 'pw_materials_gateway_config';
 
@@ -45,77 +67,76 @@ export class GatewayAPI {
   public async recognizeMaterial(
     imageBase64: string,
     onProgress?: (progress: number, stage?: string, message?: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    initialProgress: number = 0
   ): Promise<MaterialRecognitionResult> {
-    onProgress?.(10, 'preparing', 'Validating and preparing document...');
+    let currentProgress = initialProgress;
 
-    // Call secure server-side AI Vision endpoint (/api/recognize)
+    const emitProgress = (p: number, stg?: string, msg?: string) => {
+      currentProgress = Math.max(currentProgress, p);
+      onProgress?.(currentProgress, stg, msg);
+    };
+
+    emitProgress(15, 'preparing', 'Preparing your image...');
+
     try {
-      onProgress?.(25, 'sending', 'Connecting to AI vision engine...');
+      emitProgress(25, 'validating', 'Checking image quality...');
+      emitProgress(40, 'connecting', 'Connecting to recognition service...');
 
-      // Keep UI continuously alive while the model processes without claiming false completion
-      let elapsed = 0;
-      const progressTimer = setInterval(() => {
-        elapsed += 1;
-        if (elapsed <= 4) {
-          onProgress?.(30, 'extracting', `AI model analyzing document (${elapsed}s)...`);
-        } else if (elapsed <= 12) {
-          const p = Math.min(60, 30 + Math.round((elapsed - 4) * 3.5));
-          onProgress?.(p, 'extracting', `Extracting material items, vendor & quantities (${elapsed}s)...`);
-        } else if (elapsed <= 25) {
-          const p = Math.min(75, 60 + Math.round((elapsed - 12) * 1.1));
-          onProgress?.(p, 'extracting', `Deep document analysis in progress (${elapsed}s)...`);
-        } else {
-          onProgress?.(78, 'extracting', `Processing large document proof (${elapsed}s)... Still working...`);
-        }
-      }, 1000);
+      // Call secure server-side AI Vision endpoint (/api/recognize)
+      emitProgress(60, 'analyzing', 'Identifying material and specifications...');
 
-      let res: Response;
-      try {
-        const fetchSignal = signal || AbortSignal.timeout(45000);
-        res = await fetch('/api/recognize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64 }),
-          signal: fetchSignal,
-        });
-      } finally {
-        clearInterval(progressTimer);
-      }
+      const fetchSignal = signal || AbortSignal.timeout(50000);
+      const res = await fetch('/api/recognize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64 }),
+        signal: fetchSignal,
+      });
 
-      onProgress?.(85, 'processing', 'Parsing & validating extracted fields...');
+      emitProgress(80, 'extracting', 'Extracting brand and product details...');
 
       if (res.ok) {
         const data = await res.json();
         if (data && data.success && data.result) {
-          onProgress?.(95, 'processing', 'Normalizing line items and review draft...');
+          emitProgress(90, 'validating_extracted', 'Validating extracted information...');
+          emitProgress(95, 'preparing_review', 'Preparing your material review...');
           const mapped = this.mapStructuredToRecognitionResult(data.result);
-          onProgress?.(100, 'complete', 'Recognition complete! Opening review form...');
+          emitProgress(100, 'complete', 'Recognition completed!');
           return mapped;
         }
-        throw new Error('Malformed recognition response from server.');
+        throw new GatewayError('Malformed recognition response received from server.', 502, 'MALFORMED_RESPONSE', true);
       } else {
-        const errData = await res.json().catch(() => ({}));
-        if (errData.code === 'MISSING_API_KEY') {
-          throw new Error('Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured in your server environment (.env).');
+        let errData: any = {};
+        try {
+          errData = await res.json();
+        } catch {
+          errData = { error: await res.text().catch(() => '') };
         }
-        throw new Error(errData.error || `AI Recognition failed (HTTP ${res.status}: ${res.statusText})`);
+
+        const status = res.status;
+        const isRetryable = errData.retryable ?? (status === 429 || status === 502 || status === 503 || status === 504);
+        const code = errData.code || `HTTP_${status}`;
+        const message = errData.error || `AI Recognition failed (HTTP ${status})`;
+
+        throw new GatewayError(message, status, code, isRetryable, errData.retryAfter);
       }
     } catch (networkErr: any) {
-      if (networkErr.name === 'AbortError' || networkErr.message?.includes('aborted') || networkErr.message?.includes('timeout')) {
-        throw new Error('AI extraction timed out after 45s. Please check your network connection and retry.');
-      }
-      // Re-throw if it's already an explicit API or configuration error
-      if (
-        networkErr.message?.includes('API_KEY') ||
-        networkErr.message?.includes('AI Recognition failed') ||
-        networkErr.message?.includes('Gemini Vision API') ||
-        networkErr.message?.includes('OpenAI Vision API') ||
-        networkErr.message?.includes('Malformed recognition')
-      ) {
+      if (networkErr instanceof GatewayError) {
         throw networkErr;
       }
-      throw new Error(`AI Recognition server unreachable: ${networkErr.message || 'Network error'}`);
+      if (networkErr.name === 'AbortError' || networkErr.message?.includes('aborted')) {
+        throw new GatewayError('Recognition was cancelled.', 499, 'CANCELLED', false);
+      }
+      if (networkErr.name === 'TimeoutError' || networkErr.message?.includes('timeout')) {
+        throw new GatewayError('AI recognition request timed out after 50s. Please check your network and retry.', 504, 'TIMEOUT', true);
+      }
+      throw new GatewayError(
+        `AI recognition server unreachable: ${networkErr.message || 'Network connection issue'}`,
+        503,
+        'NETWORK_ERROR',
+        true
+      );
     }
   }
 

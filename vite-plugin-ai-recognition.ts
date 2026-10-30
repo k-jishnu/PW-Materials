@@ -1,7 +1,11 @@
 // vite-plugin-ai-recognition.ts
 import type { Plugin } from 'vite';
 import { loadEnv } from 'vite';
-import { executeOpenAIVisionRecognition, executeGeminiVisionRecognition } from './src/services/aiRecognitionEngine';
+import {
+  executeOpenAIVisionRecognition,
+  executeGeminiVisionRecognition,
+  AIRecognitionError,
+} from './src/services/aiRecognitionEngine.ts';
 
 export function aiRecognitionPlugin(): Plugin {
   let envConfig: Record<string, string> = {};
@@ -16,7 +20,7 @@ export function aiRecognitionPlugin(): Plugin {
         if (req.method !== 'POST') {
           res.statusCode = 405;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+          res.end(JSON.stringify({ error: 'Method Not Allowed', code: 'METHOD_NOT_ALLOWED', retryable: false }));
           return;
         }
 
@@ -30,10 +34,17 @@ export function aiRecognitionPlugin(): Plugin {
             const parsed = JSON.parse(body || '{}');
             const { imageBase64 } = parsed;
 
-            if (!imageBase64 || typeof imageBase64 !== 'string') {
+            if (!imageBase64 || typeof imageBase64 !== 'string' || !imageBase64.trim()) {
               res.statusCode = 400;
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'Missing required imageBase64 in request body.' }));
+              res.end(JSON.stringify({ error: 'Missing required imageBase64 in request body.', code: 'INVALID_INPUT', retryable: false }));
+              return;
+            }
+
+            if (imageBase64.length > 14 * 1024 * 1024) {
+              res.statusCode = 413;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Image payload exceeds 10MB limit.', code: 'PAYLOAD_TOO_LARGE', retryable: false }));
               return;
             }
 
@@ -60,6 +71,7 @@ export function aiRecognitionPlugin(): Plugin {
                 JSON.stringify({
                   error: 'Neither GEMINI_API_KEY nor OPENAI_API_KEY is configured in your .env file.',
                   code: 'MISSING_API_KEY',
+                  retryable: false,
                 })
               );
               return;
@@ -69,10 +81,17 @@ export function aiRecognitionPlugin(): Plugin {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: true, model: usedModel, result }));
           } catch (err: any) {
-            console.error('[AI Vision Endpoint Error]:', err.message);
-            res.statusCode = 500;
+            const statusCode = err instanceof AIRecognitionError ? err.statusCode : (err.statusCode || 500);
+            const errorCode = err instanceof AIRecognitionError ? err.code : 'AI_RECOGNITION_FAILED';
+            const isRetryable = err instanceof AIRecognitionError ? err.retryable : (statusCode === 429 || statusCode >= 502);
+
+            let safeMessage = err.message || 'Recognition processing failed';
+            safeMessage = safeMessage.replace(/(?:key=|Bearer\s+)[A-Za-z0-9._-]+/gi, '[REDACTED]');
+
+            console.error('[AI Vision Endpoint Error]:', safeMessage);
+            res.statusCode = statusCode;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message || 'Recognition processing failed' }));
+            res.end(JSON.stringify({ error: safeMessage, code: errorCode, retryable: isRetryable, retryAfter: err.retryAfter, status: statusCode }));
           }
         });
       });

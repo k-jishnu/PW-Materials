@@ -8,9 +8,12 @@ import { telemetry } from '@/services/telemetry';
 export type RecognitionStage =
   | 'idle'
   | 'preparing'
-  | 'sending'
+  | 'validating'
+  | 'connecting'
+  | 'analyzing'
   | 'extracting'
-  | 'processing'
+  | 'validating_extracted'
+  | 'preparing_review'
   | 'complete'
   | 'error';
 
@@ -33,6 +36,7 @@ export const useAIRecognition = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerIntervalRef = useRef<any>(null);
   const requestIdRef = useRef(0);
+  const highestProgressRef = useRef<number>(0);
 
   // Clear interval on unmount
   useEffect(() => {
@@ -51,18 +55,32 @@ export const useAIRecognition = () => {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
+    highestProgressRef.current = 0;
     setIsRecognizing(false);
     setProgress(0);
     setStage('idle');
-    setStatusMessage('');
+    setStatusMessage('Extraction cancelled.');
     setElapsedSeconds(0);
     setError(null);
   }, []);
 
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const setMonotonicProgress = useCallback((p: number, stg?: RecognitionStage, msg?: string) => {
+    // Monotonic progress function: progress never decreases during an active recognition job
+    const clampedNext = Math.min(99, Math.max(highestProgressRef.current, Math.max(0, p)));
+    highestProgressRef.current = clampedNext;
+    setProgress(clampedNext);
+    if (stg) setStage(stg);
+    if (msg) setStatusMessage(msg);
+  }, []);
+
   const recognize = useCallback(
     async (imageBase64: string): Promise<MaterialRecognitionResult> => {
-      // Prevent duplicate recognition requests caused by rapid repeated taps
-      if (isRecognizing && abortControllerRef.current) {
+      // Abort any previous running extraction to prevent overlapping jobs
+      if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
 
@@ -72,11 +90,12 @@ export const useAIRecognition = () => {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
+      highestProgressRef.current = 15;
       setIsRecognizing(true);
       setError(null);
-      setProgress(10);
+      setProgress(15);
       setStage('preparing');
-      setStatusMessage('Validating and preparing document...');
+      setStatusMessage('Preparing your image...');
       setElapsedSeconds(0);
 
       // Start elapsed timer
@@ -89,11 +108,12 @@ export const useAIRecognition = () => {
       const startTime = performance.now();
 
       try {
-        const cachePrompt = 'extract-material-v1';
-        // 1. Check cache first
+        const cachePrompt = 'extract-material-v2';
+        // 1. Check instant cache first
         const cached = recognitionCache.get(imageBase64, cachePrompt);
         if (cached) {
           if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+          highestProgressRef.current = 100;
           setProgress(100);
           setStage('complete');
           setStatusMessage('Loaded from instant cache');
@@ -102,15 +122,13 @@ export const useAIRecognition = () => {
           return cached;
         }
 
-        // 2. Call resilient gateway with streaming progress & AbortSignal
+        // 2. Call resilient gateway with monotonic progress tracking & AbortSignal
         const result = await resilientGateway.recognizeWithRetry(
           imageBase64,
           {},
           (p, stg, msg) => {
             if (requestIdRef.current !== currentRequestId) return; // Stale check
-            setProgress(p);
-            if (stg) setStage(stg as RecognitionStage);
-            if (msg) setStatusMessage(msg);
+            setMonotonicProgress(p, stg as RecognitionStage, msg);
           },
           abortController.signal
         );
@@ -120,9 +138,10 @@ export const useAIRecognition = () => {
         }
 
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        highestProgressRef.current = 100;
         setProgress(100);
         setStage('complete');
-        setStatusMessage('Extraction verified! Opening review form...');
+        setStatusMessage('Recognition completed! Opening review form...');
         setLastResult(result);
 
         // 3. Save to cache
@@ -154,7 +173,7 @@ export const useAIRecognition = () => {
           throw err;
         }
 
-        const msg = err.message || 'Material recognition failed';
+        const msg = err.message || 'Material recognition could not be completed.';
         setError(msg);
         setStage('error');
         setStatusMessage(msg);
@@ -174,7 +193,7 @@ export const useAIRecognition = () => {
         }
       }
     },
-    [isRecognizing]
+    [setMonotonicProgress]
   );
 
   return {
@@ -187,6 +206,7 @@ export const useAIRecognition = () => {
     cancelRecognition,
     lastResult,
     error,
+    clearError,
     clearResult: () => setLastResult(null),
   };
 };
