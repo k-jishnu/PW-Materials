@@ -198,7 +198,7 @@ check('App.tsx stores recognitionError and passes manual fallback with photoUrl'
 console.log('\n--- 4. VERCEL SERVERLESS ENDPOINT: BODY PARSING & ERROR RESPONSES ---');
 
 const apiCode = fs.readFileSync(path.resolve('api/recognize.ts'), 'utf8');
-check('api/recognize.ts imports with .ts extension for Node 24 ESM resolution', apiCode.includes("from '../src/services/aiRecognitionEngine.ts'"));
+check('api/recognize.ts is self-contained with zero fragile relative imports', !apiCode.includes("from '../src/"));
 check('api/recognize.ts handles dual stream/object body parsing safely', apiCode.includes('getRequestBody') && apiCode.includes('Buffer.isBuffer'));
 check('api/recognize.ts validates 10MB payload size limit (HTTP 413)', apiCode.includes('14 * 1024 * 1024') && apiCode.includes('413'));
 check('api/recognize.ts validates supported MIME types', apiCode.includes('supportedTypes') && apiCode.includes('application/pdf'));
