@@ -1,103 +1,110 @@
 // src/components/Layout/BottomNav.tsx
 import React from 'react';
 import { Camera, Package, DownloadCloud, Settings } from 'lucide-react';
-
-export type ActiveTab = 'capture' | 'materials' | 'download';
+import { ActiveRoute } from '@/hooks/useAppRouter';
 
 interface BottomNavProps {
-  activeTab: ActiveTab;
-  onTabChange: (tab: ActiveTab) => void;
+  currentRoute: ActiveRoute;
+  onNavigate: (route: ActiveRoute) => void;
   draftCount: number;
-  onOpenSettings: () => void;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
-  activeTab,
-  onTabChange,
+  currentRoute,
+  onNavigate,
   draftCount,
-  onOpenSettings,
 }) => {
   return (
     <nav className="bottom-nav" aria-label="Mobile Navigation">
+      {/* 1. Capture */}
       <button
         type="button"
-        onClick={() => onTabChange('capture')}
-        className={`bottom-nav-item ${activeTab === 'capture' ? 'active' : ''}`}
+        onClick={() => onNavigate('/capture')}
+        className={`bottom-nav-item ${currentRoute === '/capture' ? 'active' : ''}`}
         aria-label="Capture"
         style={{
-          background: activeTab === 'capture' ? 'var(--color-primary-selected)' : 'transparent',
-          border: activeTab === 'capture' ? '2px solid var(--color-border)' : '2px solid transparent',
+          background: currentRoute === '/capture' ? 'var(--color-primary-selected)' : 'transparent',
+          border: currentRoute === '/capture' ? '2px solid var(--color-border)' : '2px solid transparent',
           borderRadius: 'var(--radius-md)',
-          boxShadow: activeTab === 'capture' ? 'var(--shadow-hard-xs)' : 'none',
-          padding: '4px 10px',
+          boxShadow: currentRoute === '/capture' ? 'var(--shadow-hard-xs)' : 'none',
+          padding: '4px 8px',
         }}
       >
-        <Camera size={19} strokeWidth={activeTab === 'capture' ? 2.5 : 2} />
+        <Camera size={19} strokeWidth={currentRoute === '/capture' ? 2.5 : 2} />
         <span>Capture</span>
       </button>
 
+      {/* 2. Materials */}
       <button
         type="button"
-        onClick={() => onTabChange('materials')}
-        className={`bottom-nav-item ${activeTab === 'materials' ? 'active' : ''}`}
+        onClick={() => onNavigate('/materials')}
+        className={`bottom-nav-item ${currentRoute === '/materials' ? 'active' : ''}`}
         aria-label="Materials"
         style={{
           position: 'relative',
-          background: activeTab === 'materials' ? 'var(--color-primary-selected)' : 'transparent',
-          border: activeTab === 'materials' ? '2px solid var(--color-border)' : '2px solid transparent',
+          background: currentRoute === '/materials' ? 'var(--color-primary-selected)' : 'transparent',
+          border: currentRoute === '/materials' ? '2px solid var(--color-border)' : '2px solid transparent',
           borderRadius: 'var(--radius-md)',
-          boxShadow: activeTab === 'materials' ? 'var(--shadow-hard-xs)' : 'none',
-          padding: '4px 10px',
+          boxShadow: currentRoute === '/materials' ? 'var(--shadow-hard-xs)' : 'none',
+          padding: '4px 8px',
         }}
       >
-        <Package size={19} strokeWidth={activeTab === 'materials' ? 2.5 : 2} />
+        <Package size={19} strokeWidth={currentRoute === '/materials' ? 2.5 : 2} />
         <span>Materials</span>
         {draftCount > 0 && (
-          <span style={{
-            position: 'absolute',
-            top: '2px',
-            right: '8px',
-            background: 'var(--color-butter-yellow)',
-            color: '#202020',
-            borderRadius: 'var(--radius-pill)',
-            border: '1.5px solid var(--color-border)',
-            fontSize: '10px',
-            fontWeight: 900,
-            padding: '1px 5px',
-            minWidth: '16px',
-            textAlign: 'center',
-            lineHeight: '14px',
-          }}>
+          <span
+            style={{
+              position: 'absolute',
+              top: '2px',
+              right: '6px',
+              background: 'var(--color-primary)',
+              border: '1.5px solid var(--color-border)',
+              color: 'var(--color-primary-text)',
+              fontSize: '10px',
+              fontWeight: 900,
+              padding: '1px 5px',
+              borderRadius: '10px',
+              lineHeight: 1,
+            }}
+          >
             {draftCount}
           </span>
         )}
       </button>
 
+      {/* 3. Export */}
       <button
         type="button"
-        onClick={() => onTabChange('download')}
-        className={`bottom-nav-item ${activeTab === 'download' ? 'active' : ''}`}
+        onClick={() => onNavigate('/export')}
+        className={`bottom-nav-item ${currentRoute === '/export' ? 'active' : ''}`}
         aria-label="Export"
         style={{
-          background: activeTab === 'download' ? 'var(--color-primary-selected)' : 'transparent',
-          border: activeTab === 'download' ? '2px solid var(--color-border)' : '2px solid transparent',
+          background: currentRoute === '/export' ? 'var(--color-primary-selected)' : 'transparent',
+          border: currentRoute === '/export' ? '2px solid var(--color-border)' : '2px solid transparent',
           borderRadius: 'var(--radius-md)',
-          boxShadow: activeTab === 'download' ? 'var(--shadow-hard-xs)' : 'none',
-          padding: '4px 10px',
+          boxShadow: currentRoute === '/export' ? 'var(--shadow-hard-xs)' : 'none',
+          padding: '4px 8px',
         }}
       >
-        <DownloadCloud size={19} strokeWidth={activeTab === 'download' ? 2.5 : 2} />
+        <DownloadCloud size={19} strokeWidth={currentRoute === '/export' ? 2.5 : 2} />
         <span>Export</span>
       </button>
 
+      {/* 4. Settings */}
       <button
         type="button"
-        onClick={onOpenSettings}
-        className="bottom-nav-item"
+        onClick={() => onNavigate('/settings')}
+        className={`bottom-nav-item ${currentRoute === '/settings' ? 'active' : ''}`}
         aria-label="Settings"
-        style={{ padding: '4px 10px', border: '2px solid transparent' }}
+        style={{
+          background: currentRoute === '/settings' ? 'var(--color-primary-selected)' : 'transparent',
+          border: currentRoute === '/settings' ? '2px solid var(--color-border)' : '2px solid transparent',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: currentRoute === '/settings' ? 'var(--shadow-hard-xs)' : 'none',
+          padding: '4px 8px',
+        }}
       >
-        <Settings size={19} strokeWidth={2} />
+        <Settings size={19} strokeWidth={currentRoute === '/settings' ? 2.5 : 2} />
         <span>Settings</span>
       </button>
     </nav>

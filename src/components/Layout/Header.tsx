@@ -1,64 +1,88 @@
 // src/components/Layout/Header.tsx
 import React from 'react';
-import { Settings, Camera, Package, DownloadCloud, Database } from 'lucide-react';
+import { Camera, Package, DownloadCloud, Settings } from 'lucide-react';
 import { SupabaseConfig, GatewayConfig } from '@/types';
-import { ActiveTab } from './BottomNav';
+import { ActiveRoute } from '@/hooks/useAppRouter';
 
 interface HeaderProps {
-  onOpenSettings: () => void;
-  supabaseConfig: SupabaseConfig;
-  gatewayConfig: GatewayConfig;
-  activeTab: ActiveTab;
-  onTabChange: (tab: ActiveTab) => void;
+  currentRoute: ActiveRoute;
+  onNavigate: (route: ActiveRoute) => void;
   draftCount: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  onOpenSettings,
-  supabaseConfig,
-  activeTab,
-  onTabChange,
+  currentRoute,
+  onNavigate,
   draftCount,
 }) => {
   return (
     <header className="app-header">
-      <div style={{
-        maxWidth: '1140px',
-        margin: '0 auto',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        width: '100%',
-        gap: '16px',
-      }}>
+      <div
+        style={{
+          maxWidth: '1140px',
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          gap: '16px',
+        }}
+      >
         {/* Brand / Logo: Light Yellow #FFF0BC background, bold black border, hard offset shadow */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--color-logo-bg)',
-            border: '2.5px solid var(--color-border)',
-            boxShadow: 'var(--shadow-hard-xs)',
+        <div
+          onClick={() => onNavigate('/capture')}
+          style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: '#202020',
-            flexShrink: 0,
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#202020" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            gap: '10px',
+            cursor: 'pointer',
+          }}
+        >
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-logo-bg)',
+              border: '2.5px solid var(--color-border)',
+              boxShadow: 'var(--shadow-hard-xs)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#202020',
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#202020"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M16.5 9.4 7.55 4.24a1.78 1.78 0 0 0-2.5 1.55v12.42a1.78 1.78 0 0 0 2.5 1.55L16.5 14.6a1.78 1.78 0 0 0 0-3.2z" />
               <path d="M21 7v10" />
             </svg>
           </div>
           <div>
-            <span style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>
+            <span
+              style={{
+                fontSize: '18px',
+                fontWeight: 900,
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-serif)',
+                letterSpacing: '-0.02em',
+              }}
+            >
               PW Materials
             </span>
           </div>
         </div>
 
-        {/* Desktop Primary Navigation */}
+        {/* Desktop Primary Navigation: 4 Dedicated Pages */}
         <nav
           className="desktop-nav"
           style={{
@@ -72,146 +96,117 @@ export const Header: React.FC<HeaderProps> = ({
           }}
           aria-label="Main Navigation"
         >
+          {/* 1. Capture */}
           <button
             type="button"
-            onClick={() => onTabChange('capture')}
+            onClick={() => onNavigate('/capture')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px 14px',
               borderRadius: 'var(--radius-sm)',
+              border: currentRoute === '/capture' ? '2px solid var(--color-border)' : '2px solid transparent',
+              background: currentRoute === '/capture' ? 'var(--color-primary-selected)' : 'transparent',
+              boxShadow: currentRoute === '/capture' ? 'var(--shadow-hard-xs)' : 'none',
+              fontWeight: 800,
               fontSize: '13px',
-              fontFamily: 'var(--font-serif)',
-              fontWeight: 700,
-              color: '#202020',
-              backgroundColor: activeTab === 'capture' ? 'var(--color-primary-selected)' : 'transparent',
-              border: activeTab === 'capture' ? '2px solid var(--color-border)' : '2px solid transparent',
               cursor: 'pointer',
-              boxShadow: activeTab === 'capture' ? 'var(--shadow-hard-xs)' : 'none',
-              transition: 'all 0.1s ease',
+              color: 'var(--text-primary)',
             }}
           >
-            <Camera size={15} strokeWidth={2.5} />
+            <Camera size={15} strokeWidth={currentRoute === '/capture' ? 2.8 : 2} />
             <span>Capture</span>
           </button>
 
+          {/* 2. Materials */}
           <button
             type="button"
-            onClick={() => onTabChange('materials')}
+            onClick={() => onNavigate('/materials')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px 14px',
               borderRadius: 'var(--radius-sm)',
+              border: currentRoute === '/materials' ? '2px solid var(--color-border)' : '2px solid transparent',
+              background: currentRoute === '/materials' ? 'var(--color-primary-selected)' : 'transparent',
+              boxShadow: currentRoute === '/materials' ? 'var(--shadow-hard-xs)' : 'none',
+              fontWeight: 800,
               fontSize: '13px',
-              fontFamily: 'var(--font-serif)',
-              fontWeight: 700,
-              color: '#202020',
-              backgroundColor: activeTab === 'materials' ? 'var(--color-primary-selected)' : 'transparent',
-              border: activeTab === 'materials' ? '2px solid var(--color-border)' : '2px solid transparent',
               cursor: 'pointer',
-              boxShadow: activeTab === 'materials' ? 'var(--shadow-hard-xs)' : 'none',
-              transition: 'all 0.1s ease',
+              color: 'var(--text-primary)',
+              position: 'relative',
             }}
           >
-            <Package size={15} strokeWidth={2.5} />
+            <Package size={15} strokeWidth={currentRoute === '/materials' ? 2.8 : 2} />
             <span>Materials</span>
             {draftCount > 0 && (
-              <span style={{
-                fontSize: '11px',
-                fontWeight: 900,
-                backgroundColor: 'var(--color-butter-yellow)',
-                color: '#202020',
-                padding: '1px 6px',
-                borderRadius: 'var(--radius-pill)',
-                border: '1.5px solid var(--color-border)',
-                lineHeight: '16px',
-              }}>
+              <span
+                style={{
+                  background: 'var(--color-primary)',
+                  border: '1.5px solid var(--color-border)',
+                  color: 'var(--color-primary-text)',
+                  fontSize: '10px',
+                  fontWeight: 900,
+                  padding: '1px 5px',
+                  borderRadius: '10px',
+                  lineHeight: 1,
+                  marginLeft: '2px',
+                }}
+              >
                 {draftCount}
               </span>
             )}
           </button>
 
+          {/* 3. Export */}
           <button
             type="button"
-            onClick={() => onTabChange('download')}
+            onClick={() => onNavigate('/export')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px 14px',
               borderRadius: 'var(--radius-sm)',
+              border: currentRoute === '/export' ? '2px solid var(--color-border)' : '2px solid transparent',
+              background: currentRoute === '/export' ? 'var(--color-primary-selected)' : 'transparent',
+              boxShadow: currentRoute === '/export' ? 'var(--shadow-hard-xs)' : 'none',
+              fontWeight: 800,
               fontSize: '13px',
-              fontFamily: 'var(--font-serif)',
-              fontWeight: 700,
-              color: '#202020',
-              backgroundColor: activeTab === 'download' ? 'var(--color-primary-selected)' : 'transparent',
-              border: activeTab === 'download' ? '2px solid var(--color-border)' : '2px solid transparent',
               cursor: 'pointer',
-              boxShadow: activeTab === 'download' ? 'var(--shadow-hard-xs)' : 'none',
-              transition: 'all 0.1s ease',
+              color: 'var(--text-primary)',
             }}
           >
-            <DownloadCloud size={15} strokeWidth={2.5} />
+            <DownloadCloud size={15} strokeWidth={currentRoute === '/export' ? 2.8 : 2} />
             <span>Export</span>
           </button>
-        </nav>
 
-        {/* Right Section: Storage mode & Settings */}
-        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Phase 1: Always shows Local — no active DB connection */}
-          <div
-            className="storage-indicator"
+          {/* 4. Settings */}
+          <button
+            type="button"
+            onClick={() => onNavigate('/settings')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 10px',
-              borderRadius: 'var(--radius-pill)',
-              fontSize: '12px',
-              fontWeight: 700,
-              fontFamily: 'var(--font-serif)',
-              color: '#202020',
-              backgroundColor: 'var(--bg-card)',
-              border: '2px solid var(--color-border)',
-              boxShadow: 'var(--shadow-hard-xs)',
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-sm)',
+              border: currentRoute === '/settings' ? '2px solid var(--color-border)' : '2px solid transparent',
+              background: currentRoute === '/settings' ? 'var(--color-primary-selected)' : 'transparent',
+              boxShadow: currentRoute === '/settings' ? 'var(--shadow-hard-xs)' : 'none',
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer',
+              color: 'var(--text-primary)',
             }}
-            title="Phase 1: Data saved in this browser only (localStorage)"
           >
-            <Database size={13} color="#202020" strokeWidth={2.5} />
-            <span>Local</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="btn-icon header-settings-btn"
-            aria-label="Application Settings"
-            title="Settings"
-          >
-            <Settings size={18} strokeWidth={2.2} />
+            <Settings size={15} strokeWidth={currentRoute === '/settings' ? 2.8 : 2} />
+            <span>Settings</span>
           </button>
-        </div>
+        </nav>
       </div>
-
-      <style>{`
-        @media (max-width: 768px) {
-          .desktop-nav {
-            display: none !important;
-          }
-          .storage-indicator {
-            display: none !important;
-          }
-          .header-settings-btn {
-            display: none !important;
-          }
-          .header-actions {
-            display: none !important;
-          }
-        }
-      `}</style>
     </header>
   );
 };

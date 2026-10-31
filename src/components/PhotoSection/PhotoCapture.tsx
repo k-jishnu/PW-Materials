@@ -1,6 +1,8 @@
+// src/components/PhotoSection/PhotoCapture.tsx
 import React, { useState } from 'react';
-import { Camera, Upload, RotateCw, X, Sparkles, AlertCircle, RefreshCw, FileUp, FileText, CheckCircle2 } from 'lucide-react';
+import { Camera, Upload, RotateCw, X, Sparkles, AlertCircle, RefreshCw, FileUp, FileText } from 'lucide-react';
 import { useCamera } from '@/hooks/useCamera';
+import { ImageCropperModal } from '@/components/ImageEditor/ImageCropperModal';
 
 interface PhotoCaptureProps {
   onPhotoProcessed: (imageBase64: string) => Promise<void>;
@@ -83,44 +85,79 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
   const [preview, setPreview] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Handle take photo button click (with automatic mobile/HTTP fallback)
+  // Image Cropper modal state
+  const [rawImageForCrop, setRawImageForCrop] = useState<string | null>(null);
+  const [isCropperOpen, setIsCropperOpen] = useState<boolean>(false);
+
+  // Reliable camera triggering:
+  // On mobile devices (iOS/Android), always prioritize the native camera HTML input
+  // to avoid browser getUserMedia permissions getting stuck or failing.
   const handleTakePhoto = () => {
+    const isMobileDevice =
+      typeof navigator !== 'undefined' &&
+      /android|iphone|ipad|ipod|windows phone/i.test(navigator.userAgent || '');
+
     const hasMediaDevices =
       typeof navigator !== 'undefined' &&
       !!navigator.mediaDevices &&
       typeof navigator.mediaDevices.getUserMedia === 'function';
 
-    if (!hasMediaDevices) {
-      // Direct native camera on mobile / non-HTTPS LAN
+    if (isMobileDevice || !hasMediaDevices) {
+      // Direct native mobile camera
       triggerNativeCamera();
     } else {
+      // Desktop / Laptop webcam streaming
       startCamera();
     }
   };
 
-  // Handle capture button click from live viewfinder
+  // Called when user snaps photo from live desktop viewfinder
   const handleCapture = async () => {
     try {
       const base64 = await capturePhoto();
-      setPreview(base64);
-      await onPhotoProcessed(base64);
+      stopCamera();
+      // Route immediately through image cropper/editor before AI recognition
+      setRawImageForCrop(base64);
+      setIsCropperOpen(true);
     } catch (e) {
       console.error('Capture failed:', e);
     }
   };
 
-  // Handle file upload or native camera result
+  // Called when user uploads a file or completes native mobile camera snap
   const handleUploadedFile = async (base64: string) => {
     stopCamera();
     clearCameraError();
     setUploadError(null);
-    setPreview(base64);
-    await onPhotoProcessed(base64);
+
+    // If PDF invoice, send directly to extraction without photo cropping
+    if (base64.startsWith('data:application/pdf')) {
+      setPreview(base64);
+      await onPhotoProcessed(base64);
+      return;
+    }
+
+    // Open image cropper / adjustments first
+    setRawImageForCrop(base64);
+    setIsCropperOpen(true);
   };
 
   const handleFileError = (err: string) => {
     setUploadError(err);
     setPreview(null);
+  };
+
+  // Called when user clicks "Use This Image" in cropper
+  const handleCropConfirmed = async (croppedBase64: string) => {
+    setIsCropperOpen(false);
+    setRawImageForCrop(null);
+    setPreview(croppedBase64);
+    await onPhotoProcessed(croppedBase64);
+  };
+
+  const handleCropCancelled = () => {
+    setIsCropperOpen(false);
+    setRawImageForCrop(null);
   };
 
   return (
@@ -137,7 +174,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
         onChange={(e) => handleFileChange(e, handleUploadedFile, handleFileError)}
       />
 
-      {/* Hidden native camera capture input for mobile devices and fallback */}
+      {/* Hidden native camera capture input for reliable mobile photo snapping */}
       <input
         ref={nativeCameraInputRef}
         type="file"
@@ -146,6 +183,16 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
         style={{ display: 'none' }}
         onChange={(e) => handleFileChange(e, handleUploadedFile, handleFileError)}
       />
+
+      {/* Interactive Image Cropper & Orientation Editor Modal */}
+      {rawImageForCrop && (
+        <ImageCropperModal
+          isOpen={isCropperOpen}
+          imageBase64={rawImageForCrop}
+          onConfirm={handleCropConfirmed}
+          onCancel={handleCropCancelled}
+        />
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
@@ -171,7 +218,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
         )}
       </div>
 
-      {/* Camera Live Viewfinder Area */}
+      {/* Camera Live Viewfinder Area (Desktop / supported contexts) */}
       {isCapturing && (
         <div style={{
           position: 'relative',
@@ -214,7 +261,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
               padding: '3px 10px',
               borderRadius: 'var(--radius-pill)',
             }}>
-              Align invoice within frame
+              Align material or invoice within frame
             </span>
           </div>
 
@@ -340,63 +387,63 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
                 )}
               </div>
             )}
-            <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)', margin: '0 0 4px', fontFamily: 'var(--font-serif)' }}>
-              Recognizing material
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-              AI is identifying the product and its specifications.
-            </p>
-          </div>
 
-          {/* MIDDLE: Stage badge, Progress bar, Metrics */}
-          <div style={{ width: '100%', maxWidth: '360px', margin: '20px 0' }}>
-            {/* Current stage badge */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  padding: '3px 10px',
-                  borderRadius: 'var(--radius-pill)',
-                  background: 'var(--color-logo-bg)',
-                  color: '#202020',
-                  border: '1.5px solid var(--color-border)',
-                }}
-              >
-                {getStageBadgeLabel(processingStage)}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <Sparkles size={18} color="var(--color-primary)" className="spin-slow" />
+              <h3 style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-primary)', margin: 0, fontFamily: 'var(--font-serif)' }}>
+                Recognizing material
+              </h3>
             </div>
 
-            {/* Stable Progress Bar */}
+            {/* Stage Pill */}
+            <span
+              style={{
+                display: 'inline-block',
+                fontSize: '11px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                padding: '3px 10px',
+                borderRadius: 'var(--radius-pill)',
+                background: 'var(--color-primary-surface)',
+                border: '1.5px solid var(--color-border)',
+                color: 'var(--text-primary)',
+                marginTop: '4px',
+              }}
+            >
+              {getStageBadgeLabel(processingStage)}
+            </span>
+          </div>
+
+          {/* MIDDLE: Monotonic Progress Bar & Elapsed timer */}
+          <div style={{ width: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
             <div
               style={{
                 width: '100%',
-                height: '10px',
-                background: '#E2E8F0',
+                height: '14px',
+                backgroundColor: 'var(--bg-card)',
                 borderRadius: 'var(--radius-pill)',
+                border: '2px solid var(--color-border)',
                 overflow: 'hidden',
-                border: '1.5px solid var(--color-border)',
-                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)',
+                position: 'relative',
               }}
             >
               <div
                 style={{
-                  width: `${Math.min(100, Math.max(5, processingProgress))}%`,
+                  width: `${Math.max(5, Math.min(100, processingProgress))}%`,
                   height: '100%',
-                  background: processingProgress === 100 ? 'var(--color-success)' : 'var(--color-primary)',
-                  transition: 'width 0.35s ease',
+                  backgroundColor: 'var(--color-primary)',
+                  borderRadius: 'var(--radius-pill)',
+                  transition: 'width 0.35s ease-out',
                 }}
               />
             </div>
 
-            {/* Percentage & Elapsed time row */}
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'space-between',
+                alignItems: 'center',
                 marginTop: '8px',
                 fontSize: '12px',
                 color: 'var(--text-secondary)',
@@ -408,7 +455,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
             </div>
           </div>
 
-          {/* BOTTOM: Status message container (fixed height to prevent layout jumps) & Cancel */}
+          {/* BOTTOM: Status message container & Cancel */}
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div
               style={{
@@ -669,7 +716,7 @@ export const PhotoCapture: React.FC<PhotoCaptureProps> = ({
       {/* Initial Action Buttons when camera is inactive and no preview */}
       {!isCapturing && !preview && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* Detailed recovery messages for camera issues */}
+          {/* Camera Access Blocked recovery message */}
           {cameraError === 'PERMISSION_DENIED' && (
             <div style={{
               background: 'var(--color-error)',
