@@ -62,7 +62,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) =
       await authService.signInWithGoogle();
     } catch (err: any) {
       console.error('Google Sign-in failed:', err);
-      setErrorMessage(err.message || 'Failed to initialize Google Sign-in. Please try again.');
+      const msg = err.message || '';
+      if (msg.includes('Unsupported provider') || msg.includes('provider is not enabled')) {
+        setErrorMessage(
+          'Google authentication is currently disabled in the Supabase project. An administrator must enable Google Provider in the Supabase Dashboard.'
+        );
+      } else {
+        setErrorMessage(msg || 'Failed to initialize Google Sign-in. Please try again.');
+      }
       setIsGoogleLoading(false);
     }
   };
