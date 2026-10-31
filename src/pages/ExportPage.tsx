@@ -20,3 +20,4 @@ export const ExportPage: React.FC<ExportPageProps> = ({ purchases }) => {
     </div>
   );
 };
+

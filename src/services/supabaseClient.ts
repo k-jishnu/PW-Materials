@@ -25,6 +25,10 @@ class SupabaseService {
     return { ...this.config };
   }
 
+  public getClient(): SupabaseClient | null {
+    return this.client;
+  }
+
   public saveConfig(newConfig: Partial<SupabaseConfig>): void {
     this.config = { ...this.config, ...newConfig };
     try {

@@ -186,3 +186,37 @@ export interface RecognitionMetrics {
   success: boolean;
   error?: string;
 }
+
+
+// ============================================================================
+// AUTHENTICATION & USER MANAGEMENT TYPES
+// ============================================================================
+
+export type UserRole = 'ROOT_ADMIN' | 'ADMIN' | 'EDITOR' | 'VIEWER';
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  approval_status: ApprovalStatus;
+  registration_method: string;
+  created_at: string;
+  updated_at: string;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  last_login_at?: string | null;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actor_id?: string | null;
+  actor_email?: string | null;
+  action: string;
+  target_id?: string | null;
+  target_type?: string | null;
+  details?: Record<string, any>;
+  ip_address?: string | null;
+  created_at: string;
+}

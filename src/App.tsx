@@ -1,45 +1,67 @@
 // src/App.tsx
 //
 // ============================================================
-// PW MATERIALS — FOUR-PAGE ROUTED APPLICATION
+// PW MATERIALS — COMPLETE AUTHENTICATION & USER MANAGEMENT
 // ============================================================
-// Page 1: /capture   — Dedicated capture, upload, crop & AI recognition
-// Page 2: /materials — Dedicated materials list, table & cards
-// Page 3: /export    — Dedicated statements export interface
-// Page 4: /settings  — Dedicated 6-section configuration & preferences
+// - Auth Routes: /login, /signup, /forgot-password, /reset-password,
+//                /pending-approval, /access-denied, /auth/callback
+// - Four Core Pages: /capture, /materials, /export, /settings
+// - Admin Route: /admin/users (Root Admin & Admin only)
+// - Approval Workflow: Pending users are strictly restricted to /pending-approval
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from '@/components/Layout/Header';
 import { BottomNav } from '@/components/Layout/BottomNav';
 import { CapturePage } from '@/pages/CapturePage';
 import { MaterialsPage } from '@/pages/MaterialsPage';
 import { ExportPage } from '@/pages/ExportPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { AdminUsersPage } from '@/pages/AdminUsersPage';
+import { LoginPage } from '@/pages/LoginPage';
+import { SignupPage } from '@/pages/SignupPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+import { PendingApprovalPage } from '@/pages/PendingApprovalPage';
+import { AccessDeniedPage } from '@/pages/AccessDeniedPage';
+import { AuthCallbackPage } from '@/pages/AuthCallbackPage';
 import { AddMaterialModal, ReviewItemData, ModalInitialData } from '@/components/MaterialsList/AddMaterialModal';
 import { useAIRecognition } from '@/hooks/useAIRecognition';
 import { useMaterials } from '@/hooks/useMaterials';
-import { useAppRouter } from '@/hooks/useAppRouter';
+import { useAppRouter, AppRoute } from '@/hooks/useAppRouter';
+import { useAuthProvider, AuthContext } from '@/hooks/useAuth';
 import { PurchaseRecord, GatewayConfig, SupabaseConfig } from '@/types';
 import { gatewayAPI } from '@/services/gatewayAPI';
 import { supabaseService } from '@/services/supabaseClient';
 import { getPurchases } from '@/services/localDataService';
+import { RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
+  const authState = useAuthProvider();
+  const {
+    user,
+    profile,
+    approvalStatus,
+    isLoading: authLoading,
+    isAuthenticated,
+    isApproved,
+    isAdmin,
+  } = authState;
+
   const { currentRoute, navigate } = useAppRouter();
 
   // Add / Review Modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [modalInitialData, setModalInitialData] = useState<ModalInitialData | null>(null);
 
-  // Config objects are kept for Settings display & updates
+  // Config objects
   const [gatewayConfig, setGatewayConfig] = useState<GatewayConfig>(() => gatewayAPI.getConfig());
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(() => supabaseService.getConfig());
 
   // Purchases managed via localDataService & useMaterials
   const [purchases, setPurchases] = useState<PurchaseRecord[]>(() => getPurchases());
 
-  // Recognition error state for application-level error panel
+  // Recognition error state
   const [recognitionError, setRecognitionError] = useState<string | null>(null);
 
   const handlePurchaseAdded = (record: PurchaseRecord) => {
@@ -64,14 +86,160 @@ export const App: React.FC = () => {
     cancelRecognition,
   } = useAIRecognition();
 
-  // Called when camera photo is snapped or file is uploaded & cropped
+  // ==========================================================================
+  // ROUTE PROTECTION & REDIRECT LOGIC
+  // ==========================================================================
+  const isAuthRoute =
+    currentRoute === '/login' ||
+    currentRoute === '/signup' ||
+    currentRoute === '/forgot-password' ||
+    currentRoute === '/reset-password' ||
+    currentRoute === '/auth/callback';
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    // Check if Supabase client is connected; if not configured with keys, allow local evaluation
+    const hasSupabaseClient = !!supabaseService.getClient();
+
+    if (!hasSupabaseClient) {
+      // Local fallback mode when no Supabase URL/Key is configured
+      return;
+    }
+
+    if (!isAuthenticated) {
+      // User is not logged in
+      if (!isAuthRoute) {
+        navigate('/login');
+      }
+    } else {
+      // User is logged in
+      if (approvalStatus === 'PENDING') {
+        if (currentRoute !== '/pending-approval') {
+          navigate('/pending-approval');
+        }
+      } else if (approvalStatus === 'REJECTED') {
+        if (currentRoute !== '/access-denied') {
+          navigate('/access-denied');
+        }
+      } else if (approvalStatus === 'SUSPENDED') {
+        if (currentRoute !== '/access-denied') {
+          navigate('/access-denied');
+        }
+      } else if (isApproved) {
+        // User is approved: if they are on an auth route or pending screen, redirect to /capture
+        if (
+          isAuthRoute ||
+          currentRoute === '/pending-approval' ||
+          currentRoute === '/access-denied'
+        ) {
+          navigate('/capture');
+        } else if (currentRoute === '/admin/users' && !isAdmin) {
+          // Non-admin trying to access admin page
+          navigate('/capture');
+        }
+      }
+    }
+  }, [
+    authLoading,
+    isAuthenticated,
+    isApproved,
+    approvalStatus,
+    currentRoute,
+    isAuthRoute,
+    isAdmin,
+    navigate,
+  ]);
+
+  // Loading Screen while initial session and profile are validating
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'var(--bg-page)',
+          gap: '12px',
+        }}
+      >
+        <RefreshCw size={28} className="spin" color="var(--color-primary)" />
+        <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+          Authenticating PW Materials...
+        </span>
+      </div>
+    );
+  }
+
+  // Standalone Auth Screens (No Header / No Bottom Nav)
+  if (currentRoute === '/login') {
+    return (
+      <AuthContext.Provider value={authState}>
+        <LoginPage onNavigate={navigate} onSuccess={() => navigate('/capture')} />
+      </AuthContext.Provider>
+    );
+  }
+
+  if (currentRoute === '/signup') {
+    return (
+      <AuthContext.Provider value={authState}>
+        <SignupPage onNavigate={navigate} onSuccess={() => navigate('/pending-approval')} />
+      </AuthContext.Provider>
+    );
+  }
+
+  if (currentRoute === '/forgot-password') {
+    return (
+      <AuthContext.Provider value={authState}>
+        <ForgotPasswordPage onNavigate={navigate} />
+      </AuthContext.Provider>
+    );
+  }
+
+  if (currentRoute === '/reset-password') {
+    return (
+      <AuthContext.Provider value={authState}>
+        <ResetPasswordPage onNavigate={navigate} />
+      </AuthContext.Provider>
+    );
+  }
+
+  if (currentRoute === '/pending-approval') {
+    return (
+      <AuthContext.Provider value={authState}>
+        <PendingApprovalPage onNavigate={navigate} />
+      </AuthContext.Provider>
+    );
+  }
+
+  if (currentRoute === '/access-denied') {
+    return (
+      <AuthContext.Provider value={authState}>
+        <AccessDeniedPage onNavigate={navigate} />
+      </AuthContext.Provider>
+    );
+  }
+
+  if (currentRoute === '/auth/callback') {
+    return (
+      <AuthContext.Provider value={authState}>
+        <AuthCallbackPage onNavigate={navigate} />
+      </AuthContext.Provider>
+    );
+  }
+
+  // ==========================================================================
+  // CORE APPLICATION SCREENS (Protected & Approved)
+  // ==========================================================================
+
   const handlePhotoProcessed = async (imageBase64: string) => {
     setRecognitionError(null);
     try {
       const result = await recognize(imageBase64);
       const isMaterialPhoto = result.documentType === 'material_photo' || !result.documentType;
 
-      // Support multi-line invoice items or single item fallback
       const mappedItems: ReviewItemData[] =
         result.allLineItems && result.allLineItems.length > 0
           ? result.allLineItems.map((li) => ({
@@ -113,7 +281,6 @@ export const App: React.FC = () => {
               },
             ];
 
-      // Populate review form ONLY. DO NOT save automatically!
       setModalInitialData({
         items: mappedItems,
         source: 'ai',
@@ -165,7 +332,6 @@ export const App: React.FC = () => {
     const res = await confirmMaterials(items);
     if (res.success) {
       setPurchases(getPurchases());
-      // Navigate user to the Materials page to view newly saved materials
       navigate('/materials');
     }
     return res;
@@ -184,73 +350,75 @@ export const App: React.FC = () => {
   const allExportableRecords = purchases.length > 0 ? purchases : getPurchases();
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Persistent Desktop & Mobile Header with 4-page navigation */}
-      <Header
-        currentRoute={currentRoute}
-        onNavigate={navigate}
-        draftCount={isAddModalOpen && modalInitialData?.source === 'ai' ? modalInitialData.items.length : 0}
-      />
+    <AuthContext.Provider value={authState}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <Header
+          currentRoute={currentRoute}
+          onNavigate={navigate}
+          draftCount={isAddModalOpen && modalInitialData?.source === 'ai' ? modalInitialData.items.length : 0}
+        />
 
-      {/* Main Content Area: Renders the active dedicated page */}
-      <main className="app-container" style={{ flex: 1 }}>
-        {currentRoute === '/capture' && (
-          <CapturePage
-            onPhotoProcessed={handlePhotoProcessed}
-            isProcessing={isRecognizing}
-            processingProgress={progress}
-            processingStage={stage}
-            processingStatusMessage={statusMessage}
-            processingElapsedSeconds={elapsedSeconds}
-            onCancelProcessing={cancelRecognition}
-            recognitionError={recognitionError}
-            onClearError={() => setRecognitionError(null)}
-            onManualEntryWithPhoto={handleManualEntryWithPhoto}
-          />
-        )}
+        <main className="app-container" style={{ flex: 1 }}>
+          {currentRoute === '/capture' && (
+            <CapturePage
+              onPhotoProcessed={handlePhotoProcessed}
+              isProcessing={isRecognizing}
+              processingProgress={progress}
+              processingStage={stage}
+              processingStatusMessage={statusMessage}
+              processingElapsedSeconds={elapsedSeconds}
+              onCancelProcessing={cancelRecognition}
+              recognitionError={recognitionError}
+              onClearError={() => setRecognitionError(null)}
+              onManualEntryWithPhoto={handleManualEntryWithPhoto}
+            />
+          )}
 
-        {currentRoute === '/materials' && (
-          <MaterialsPage
-            materials={materials}
-            onDelete={deleteMaterial}
-            onDuplicate={duplicateMaterial}
-            onUpdateField={updateMaterialField}
-            onOpenAdd={handleOpenManualAdd}
-          />
-        )}
+          {currentRoute === '/materials' && (
+            <MaterialsPage
+              materials={materials}
+              onDelete={deleteMaterial}
+              onDuplicate={duplicateMaterial}
+              onUpdateField={updateMaterialField}
+              onOpenAdd={handleOpenManualAdd}
+            />
+          )}
 
-        {currentRoute === '/export' && (
-          <ExportPage purchases={allExportableRecords} />
-        )}
+          {currentRoute === '/export' && (
+            <ExportPage purchases={allExportableRecords} />
+          )}
 
-        {currentRoute === '/settings' && (
-          <SettingsPage
-            gatewayConfig={gatewayConfig}
-            onSaveGatewayConfig={handleSaveGatewayConfig}
-            supabaseConfig={supabaseConfig}
-            onSaveSupabaseConfig={handleSaveSupabaseConfig}
-            savedMaterialsCount={materials.length}
-          />
-        )}
-      </main>
+          {currentRoute === '/settings' && (
+            <SettingsPage
+              gatewayConfig={gatewayConfig}
+              onSaveGatewayConfig={handleSaveGatewayConfig}
+              supabaseConfig={supabaseConfig}
+              onSaveSupabaseConfig={handleSaveSupabaseConfig}
+              savedMaterialsCount={materials.length}
+            />
+          )}
 
-      {/* Fixed Bottom Navigation on Mobile Devices with 4 dedicated buttons */}
-      <BottomNav
-        currentRoute={currentRoute}
-        onNavigate={navigate}
-        draftCount={isAddModalOpen && modalInitialData?.source === 'ai' ? modalInitialData.items.length : 0}
-      />
+          {currentRoute === '/admin/users' && isAdmin && (
+            <AdminUsersPage />
+          )}
+        </main>
 
-      {/* Review & Manual Entry Modal */}
-      <AddMaterialModal
-        isOpen={isAddModalOpen}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          setModalInitialData(null);
-        }}
-        onAdd={handleModalSubmit}
-        initialData={modalInitialData}
-      />
-    </div>
+        <BottomNav
+          currentRoute={currentRoute}
+          onNavigate={navigate}
+          draftCount={isAddModalOpen && modalInitialData?.source === 'ai' ? modalInitialData.items.length : 0}
+        />
+
+        <AddMaterialModal
+          isOpen={isAddModalOpen}
+          onClose={() => {
+            setIsAddModalOpen(false);
+            setModalInitialData(null);
+          }}
+          onAdd={handleModalSubmit}
+          initialData={modalInitialData}
+        />
+      </div>
+    </AuthContext.Provider>
   );
 };

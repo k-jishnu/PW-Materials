@@ -36,3 +36,4 @@ export const MaterialsPage: React.FC<MaterialsPageProps> = ({
     </div>
   );
 };
+

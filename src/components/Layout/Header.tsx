@@ -1,8 +1,8 @@
 // src/components/Layout/Header.tsx
 import React from 'react';
-import { Camera, Package, DownloadCloud, Settings } from 'lucide-react';
-import { SupabaseConfig, GatewayConfig } from '@/types';
+import { Camera, Package, DownloadCloud, Settings, Users, LogOut, Shield } from 'lucide-react';
 import { ActiveRoute } from '@/hooks/useAppRouter';
+import { useAuth } from '@/hooks/useAuth';
 
 interface HeaderProps {
   currentRoute: ActiveRoute;
@@ -15,6 +15,13 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
   draftCount,
 }) => {
+  const { profile, isAdmin, isRootAdmin, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    onNavigate('/login');
+  };
+
   return (
     <header className="app-header">
       <div
@@ -82,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Desktop Primary Navigation: 4 Dedicated Pages */}
+        {/* Desktop Primary Navigation */}
         <nav
           className="desktop-nav"
           style={{
@@ -104,7 +111,7 @@ export const Header: React.FC<HeaderProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-sm)',
               border: currentRoute === '/capture' ? '2px solid var(--color-border)' : '2px solid transparent',
               background: currentRoute === '/capture' ? 'var(--color-primary-selected)' : 'transparent',
@@ -127,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-sm)',
               border: currentRoute === '/materials' ? '2px solid var(--color-border)' : '2px solid transparent',
               background: currentRoute === '/materials' ? 'var(--color-primary-selected)' : 'transparent',
@@ -168,7 +175,7 @@ export const Header: React.FC<HeaderProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-sm)',
               border: currentRoute === '/export' ? '2px solid var(--color-border)' : '2px solid transparent',
               background: currentRoute === '/export' ? 'var(--color-primary-selected)' : 'transparent',
@@ -191,7 +198,7 @@ export const Header: React.FC<HeaderProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-sm)',
               border: currentRoute === '/settings' ? '2px solid var(--color-border)' : '2px solid transparent',
               background: currentRoute === '/settings' ? 'var(--color-primary-selected)' : 'transparent',
@@ -205,6 +212,73 @@ export const Header: React.FC<HeaderProps> = ({
             <Settings size={15} strokeWidth={currentRoute === '/settings' ? 2.8 : 2} />
             <span>Settings</span>
           </button>
+
+          {/* Admin User Management Nav (Visible to ADMIN and ROOT_ADMIN only) */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => onNavigate('/admin/users')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-sm)',
+                border: currentRoute === '/admin/users' ? '2px solid var(--color-border)' : '2px solid transparent',
+                background: currentRoute === '/admin/users' ? '#FEF3C7' : 'transparent',
+                boxShadow: currentRoute === '/admin/users' ? 'var(--shadow-hard-xs)' : 'none',
+                fontWeight: 800,
+                fontSize: '13px',
+                cursor: 'pointer',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <Users size={15} strokeWidth={currentRoute === '/admin/users' ? 2.8 : 2} color="#D97706" />
+              <span>Users</span>
+            </button>
+          )}
+
+          {/* User Role Badge & Sign Out Button */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginLeft: '8px',
+              paddingLeft: '8px',
+              borderLeft: '1.5px solid var(--color-border)',
+            }}
+          >
+            {profile && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: 'var(--radius-pill)',
+                  border: '1.5px solid var(--color-border)',
+                  background: isRootAdmin
+                    ? '#FEE2E2'
+                    : isAdmin
+                    ? '#FEF3C7'
+                    : 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                {profile.role}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="btn-icon"
+              style={{ width: '32px', height: '32px' }}
+              title="Sign Out"
+              aria-label="Sign Out"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
         </nav>
       </div>
     </header>

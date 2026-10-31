@@ -652,3 +652,4 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     </div>
   );
 };
+

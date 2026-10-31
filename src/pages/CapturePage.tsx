@@ -109,3 +109,4 @@ export const CapturePage: React.FC<CapturePageProps> = ({
     </div>
   );
 };
+

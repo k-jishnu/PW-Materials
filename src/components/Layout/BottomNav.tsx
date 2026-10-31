@@ -1,7 +1,8 @@
 // src/components/Layout/BottomNav.tsx
 import React from 'react';
-import { Camera, Package, DownloadCloud, Settings } from 'lucide-react';
+import { Camera, Package, DownloadCloud, Settings, Users } from 'lucide-react';
 import { ActiveRoute } from '@/hooks/useAppRouter';
+import { useAuth } from '@/hooks/useAuth';
 
 interface BottomNavProps {
   currentRoute: ActiveRoute;
@@ -14,6 +15,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   onNavigate,
   draftCount,
 }) => {
+  const { isAdmin } = useAuth();
+
   return (
     <nav className="bottom-nav" aria-label="Mobile Navigation">
       {/* 1. Capture */}
@@ -107,6 +110,26 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         <Settings size={19} strokeWidth={currentRoute === '/settings' ? 2.5 : 2} />
         <span>Settings</span>
       </button>
+
+      {/* Admin Mobile Tab (visible to Admins) */}
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => onNavigate('/admin/users')}
+          className={`bottom-nav-item ${currentRoute === '/admin/users' ? 'active' : ''}`}
+          aria-label="Users"
+          style={{
+            background: currentRoute === '/admin/users' ? '#FEF3C7' : 'transparent',
+            border: currentRoute === '/admin/users' ? '2px solid var(--color-border)' : '2px solid transparent',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: currentRoute === '/admin/users' ? 'var(--shadow-hard-xs)' : 'none',
+            padding: '4px 8px',
+          }}
+        >
+          <Users size={19} strokeWidth={currentRoute === '/admin/users' ? 2.5 : 2} color="#D97706" />
+          <span>Users</span>
+        </button>
+      )}
     </nav>
   );
 };
