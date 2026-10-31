@@ -199,8 +199,10 @@ export interface UserProfile {
   id: string;
   email: string;
   full_name: string;
+  mobile_number?: string | null;
   role: UserRole;
   approval_status: ApprovalStatus;
+  auth_provider?: string;
   registration_method: string;
   created_at: string;
   updated_at: string;

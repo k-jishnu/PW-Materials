@@ -4,7 +4,7 @@
 -- Description:
 --   1. Create user_role enum ('ROOT_ADMIN', 'ADMIN', 'EDITOR', 'VIEWER')
 --   2. Create approval_status enum ('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')
---   3. Create public.profiles table linked to auth.users
+--   3. Create public.profiles table linked to auth.users (with mobile_number & auth_provider)
 --   4. Create public.audit_logs table
 --   5. Auto-profile trigger on auth.users insert (sets PENDING, VIEWER role, no admin privilege)
 --   6. Row-Level Security (RLS) on profiles, audit_logs, and existing data tables
@@ -27,15 +27,28 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT NOT NULL DEFAULT '',
   email TEXT NOT NULL UNIQUE,
+  mobile_number TEXT,
   role public.user_role NOT NULL DEFAULT 'VIEWER',
   approval_status public.approval_status NOT NULL DEFAULT 'PENDING',
-  registration_method TEXT NOT NULL DEFAULT 'email', -- 'email' or 'google'
+  auth_provider TEXT NOT NULL DEFAULT 'email', -- 'email' or 'google'
+  registration_method TEXT NOT NULL DEFAULT 'email',
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   approved_at TIMESTAMPTZ,
   approved_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   last_login_at TIMESTAMPTZ
 );
+
+-- Safely add columns if profiles table already existed without them
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'mobile_number') THEN
+    ALTER TABLE public.profiles ADD COLUMN mobile_number TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'auth_provider') THEN
+    ALTER TABLE public.profiles ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'email';
+  END IF;
+END $$;
 
 -- Index for fast lookup by status and email
 CREATE INDEX IF NOT EXISTS idx_profiles_approval_status ON public.profiles(approval_status);
@@ -80,12 +93,20 @@ CREATE OR REPLACE FUNCTION public.handle_new_user_profile()
 RETURNS TRIGGER AS $$
 DECLARE
   v_full_name TEXT;
+  v_mobile TEXT;
   v_provider TEXT;
 BEGIN
   v_full_name := COALESCE(
     NEW.raw_user_meta_data->>'full_name',
     NEW.raw_user_meta_data->>'name',
     split_part(NEW.email, '@', 1)
+  );
+
+  v_mobile := COALESCE(
+    NEW.raw_user_meta_data->>'mobile_number',
+    NEW.raw_user_meta_data->>'phone',
+    NEW.phone,
+    ''
   );
 
   v_provider := COALESCE(
@@ -98,8 +119,10 @@ BEGIN
     id,
     full_name,
     email,
+    mobile_number,
     role,
     approval_status,
+    auth_provider,
     registration_method,
     created_at,
     updated_at
@@ -108,15 +131,18 @@ BEGIN
     NEW.id,
     v_full_name,
     NEW.email,
+    v_mobile,
     'VIEWER',
     'PENDING',
+    v_provider,
     v_provider,
     timezone('utc'::text, now()),
     timezone('utc'::text, now())
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
-    full_name = CASE WHEN profiles.full_name = '' THEN EXCLUDED.full_name ELSE profiles.full_name END;
+    full_name = CASE WHEN profiles.full_name = '' THEN EXCLUDED.full_name ELSE profiles.full_name END,
+    mobile_number = CASE WHEN profiles.mobile_number IS NULL OR profiles.mobile_number = '' THEN EXCLUDED.mobile_number ELSE profiles.mobile_number END;
 
   -- Log user registration in audit logs
   INSERT INTO public.audit_logs (
@@ -133,8 +159,10 @@ BEGIN
     NEW.id::text,
     'user',
     jsonb_build_object(
+      'auth_provider', v_provider,
       'registration_method', v_provider,
       'email', NEW.email,
+      'mobile_number', v_mobile,
       'approval_status', 'PENDING'
     )
   );
@@ -149,8 +177,6 @@ AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user_profile();
 
 -- 6. SECURITY DEFINER HELPER FUNCTIONS FOR AUTHORIZATION CHECKS
--- These functions run with elevated rights to safely inspect the caller's role.
-
 CREATE OR REPLACE FUNCTION public.get_current_user_profile()
 RETURNS public.profiles AS $$
   SELECT * FROM public.profiles WHERE id = auth.uid() LIMIT 1;

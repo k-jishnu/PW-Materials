@@ -72,7 +72,7 @@ class AuthService {
   /**
    * Register with Email and Password
    */
-  public async signUpWithEmail(email: string, password: string, fullName: string) {
+  public async signUpWithEmail(email: string, password: string, fullName: string, mobileNumber?: string) {
     const client = supabaseService.getClient();
     if (!client) {
       throw new Error('Supabase client not initialized. Please verify configuration.');
@@ -85,6 +85,8 @@ class AuthService {
         data: {
           full_name: fullName,
           name: fullName,
+          mobile_number: mobileNumber || '',
+          phone: mobileNumber || '',
         },
         emailRedirectTo: typeof window !== 'undefined'
           ? `${window.location.origin}/auth/callback`
@@ -353,3 +355,4 @@ class AuthService {
 }
 
 export const authService = new AuthService();
+

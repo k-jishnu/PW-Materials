@@ -61,3 +61,4 @@ BEGIN
     RAISE NOTICE 'SUCCESS: User % (UID: %) is now bootstrapped as ROOT_ADMIN with APPROVED status.', target_email, target_uid;
   END IF;
 END $$;
+

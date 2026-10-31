@@ -1,13 +1,14 @@
 // src/pages/SettingsPage.tsx
 //
 // Page 4: Settings
-// Dedicated settings page organized into 6 logical sections:
+// Dedicated settings page organized into 7 logical sections:
 // 1. Account and Profile
-// 2. Application Preferences
-// 3. Data and Synchronization
-// 4. AI Recognition Settings
-// 5. Camera and Upload Preferences
-// 6. About PW Materials
+// 2. User Management (Admin & Root Admin Only)
+// 3. Application Preferences
+// 4. Data and Synchronization
+// 5. AI Recognition Settings
+// 6. Camera and Upload Preferences
+// 7. About PW Materials
 //
 
 import React, { useState } from 'react';
@@ -20,11 +21,13 @@ import {
   Info,
   CheckCircle2,
   HardDrive,
-  RefreshCw,
-  ExternalLink,
+  Shield,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { GatewayConfig, SupabaseConfig } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+import { AdminUsersPage } from '@/pages/AdminUsersPage';
 
 interface SettingsPageProps {
   gatewayConfig: GatewayConfig;
@@ -41,8 +44,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onSaveSupabaseConfig,
   savedMaterialsCount,
 }) => {
+  const { user, profile, isAdmin, isRootAdmin } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<
-    'account' | 'preferences' | 'data' | 'ai' | 'camera' | 'about'
+    'account' | 'users' | 'preferences' | 'data' | 'ai' | 'camera' | 'about'
   >('account');
 
   // Application preferences state
@@ -77,7 +81,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           Settings & Configuration
         </h2>
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-          Manage your account profile, preferences, synchronization, and AI recognition parameters.
+          Manage your account profile, preferences, synchronization, user approvals, and AI parameters.
         </p>
       </div>
 
@@ -144,6 +148,32 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             <User size={17} strokeWidth={2.2} />
             <span>Account & Profile</span>
           </button>
+
+          {/* Admin User Management Sub-Tab */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('users')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                border: activeSubTab === 'users' ? '2px solid var(--color-border)' : '2px solid transparent',
+                background: activeSubTab === 'users' ? '#FEF3C7' : 'transparent',
+                boxShadow: activeSubTab === 'users' ? 'var(--shadow-hard-xs)' : 'none',
+                fontWeight: 800,
+                fontSize: '13px',
+                cursor: 'pointer',
+                color: 'var(--text-primary)',
+                textAlign: 'left',
+              }}
+            >
+              <Users size={17} strokeWidth={2.2} color="#D97706" />
+              <span>User Approvals</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -266,11 +296,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           {/* 1. Account & Profile */}
           {activeSubTab === 'account' && (
             <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div
                   style={{
-                    width: '44px',
-                    height: '44px',
+                    width: '48px',
+                    height: '48px',
                     borderRadius: '50%',
                     backgroundColor: 'var(--color-logo-bg)',
                     border: '2px solid var(--color-border)',
@@ -279,14 +309,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     justifyContent: 'center',
                   }}
                 >
-                  <User size={22} strokeWidth={2.2} />
+                  <User size={24} strokeWidth={2.2} />
                 </div>
                 <div>
                   <h3 style={{ fontSize: '18px', fontWeight: 900, margin: 0, fontFamily: 'var(--font-serif)' }}>
-                    Admin / Site Supervisor
+                    {profile?.full_name || 'Project User'}
                   </h3>
                   <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    Local Session &bull; Full Administrative Permissions
+                    {user?.email || profile?.email || 'N/A'} &bull; Role: <strong>{profile?.role || 'VIEWER'}</strong>
                   </span>
                 </div>
               </div>
@@ -303,14 +333,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   fontSize: '13px',
                 }}
               >
-                <div><strong>Role:</strong> Project Materials Manager</div>
-                <div><strong>Site:</strong> Head Office / Construction Site Inventory</div>
-                <div><strong>Status:</strong> Active</div>
+                <div><strong>Mobile Number:</strong> {profile?.mobile_number || 'Not provided'}</div>
+                <div><strong>Assigned Role:</strong> {profile?.role || 'VIEWER'}</div>
+                <div><strong>Account Status:</strong> {profile?.approval_status || 'PENDING'}</div>
+                <div><strong>Authentication Method:</strong> {profile?.auth_provider || profile?.registration_method || 'email'}</div>
               </div>
             </div>
           )}
 
-          {/* 2. Application Preferences */}
+          {/* 2. Admin User Management Section inside Settings */}
+          {activeSubTab === 'users' && isAdmin && (
+            <AdminUsersPage />
+          )}
+
+          {/* 3. Application Preferences */}
           {activeSubTab === 'preferences' && (
             <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 900, margin: 0, fontFamily: 'var(--font-serif)' }}>
@@ -401,7 +437,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           )}
 
-          {/* 3. Data & Synchronization */}
+          {/* 4. Data & Synchronization */}
           {activeSubTab === 'data' && (
             <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 900, margin: 0, fontFamily: 'var(--font-serif)' }}>
@@ -437,7 +473,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           )}
 
-          {/* 4. AI Recognition Settings */}
+          {/* 5. AI Recognition Settings */}
           {activeSubTab === 'ai' && (
             <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 900, margin: 0, fontFamily: 'var(--font-serif)' }}>
@@ -471,7 +507,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           )}
 
-          {/* 5. Camera & Upload Preferences */}
+          {/* 6. Camera & Upload Preferences */}
           {activeSubTab === 'camera' && (
             <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 900, margin: 0, fontFamily: 'var(--font-serif)' }}>
@@ -525,7 +561,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           )}
 
-          {/* 6. About PW Materials */}
+          {/* 7. About PW Materials */}
           {activeSubTab === 'about' && (
             <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -552,7 +588,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     PW Materials
                   </h3>
                   <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    Version 2.4.0 &bull; Production Release
+                    Version 2.5.0 &bull; Production Release
                   </span>
                 </div>
               </div>
@@ -576,4 +612,3 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     </div>
   );
 };
-

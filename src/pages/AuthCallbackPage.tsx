@@ -88,3 +88,4 @@ export const AuthCallbackPage: React.FC<AuthCallbackPageProps> = ({ onNavigate }
     </div>
   );
 };
+

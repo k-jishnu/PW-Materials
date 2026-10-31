@@ -226,3 +226,4 @@ export const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNaviga
     </div>
   );
 };
+

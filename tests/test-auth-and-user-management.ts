@@ -83,12 +83,13 @@ assert(appContent.includes("navigate('/access-denied')"), 'App redirects REJECTE
 // 4. VERIFY ADMIN USER MANAGEMENT FEATURES
 console.log('\n--- 4. ADMIN USER MANAGEMENT SECTION ---');
 const adminContent = fs.readFileSync(adminUsersPage, 'utf8');
-assert(adminContent.includes('Pending Requests'), 'Admin page displays pending requests');
-assert(adminContent.includes('Approved Users'), 'Admin page displays approved users');
+assert(adminContent.includes('Pending') && adminContent.includes('pendingUsers'), 'Admin page displays pending requests');
+assert(adminContent.includes('Approved') && adminContent.includes('approvedUsers'), 'Admin page displays approved users');
 assert(adminContent.includes('handleApprove'), 'Admin page has user approval action');
 assert(adminContent.includes('handleReject'), 'Admin page has user rejection action');
 assert(adminContent.includes('handleRoleChange'), 'Admin page allows role updates');
-assert(adminContent.includes('handleToggleStatus'), 'Admin page allows user suspension/reactivation');
+assert(adminContent.includes('handleSuspend') && adminContent.includes('handleReactivate'), 'Admin page allows user suspension/reactivation');
+assert(adminContent.includes('Mobile Number'), 'Admin page table displays mobile number');
 assert(adminContent.includes('Audit Logs'), 'Admin page displays audit logs');
 assert(adminContent.includes('confirmModal'), 'Admin page requires confirmation for sensitive actions');
 
@@ -136,3 +137,4 @@ if (failCount > 0) {
 } else {
   console.log('🎉 ALL AUTHENTICATION & USER MANAGEMENT CHECKS PASSED!\n');
 }
+

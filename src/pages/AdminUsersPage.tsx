@@ -1,11 +1,18 @@
 // src/pages/AdminUsersPage.tsx
 //
-// Phase 6: Admin User Management Page
-// Allows ROOT_ADMIN and ADMIN to:
-// - Review and Approve/Reject pending registration requests (Google and Email)
-// - View approved users and update roles (VIEWER, EDITOR, ADMIN, ROOT_ADMIN)
-// - Suspend/Reactivate user accounts
-// - View audit logs with timestamps, actions, and actors
+// Phase 4: Administrator Approval System & User Management Table
+// Displayed inside Settings (and direct /admin/users route for Admin & Root Admin).
+//
+// Table Columns:
+// - Full Name
+// - Email
+// - Mobile Number
+// - Registration Date
+// - Authentication Method (Email or Google)
+// - Account Status (Pending, Approved, Rejected, Suspended)
+// - Assigned Role (VIEWER, EDITOR, ADMIN, ROOT_ADMIN)
+// - Actions (Approve, Reject, Suspend, Reactivate, Change Role)
+// Includes confirmation modal before rejecting or suspending an account.
 //
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -15,34 +22,33 @@ import {
   CheckCircle2,
   XCircle,
   Shield,
-  ShieldAlert,
   Search,
-  Filter,
   RefreshCw,
   AlertCircle,
-  FileText,
   UserCheck,
   UserX,
   History,
-  Lock,
+  Phone,
+  Mail,
+  AlertTriangle,
 } from 'lucide-react';
 import { authService } from '@/services/authService';
 import { useAuth } from '@/hooks/useAuth';
 import { UserProfile, UserRole, ApprovalStatus, AuditLogEntry } from '@/types';
 
 export const AdminUsersPage: React.FC = () => {
-  const { profile: currentAdminProfile, isRootAdmin } = useAuth();
+  const { isRootAdmin } = useAuth();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
 
-  // Tabs: 'pending' | 'approved' | 'rejected' | 'audit'
-  const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected' | 'audit'>('pending');
+  // Tabs: 'pending' | 'approved' | 'rejected' | 'suspended' | 'audit'
+  const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected' | 'suspended' | 'audit'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Confirmation Modal State
+  // Confirmation Dialog State
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -69,7 +75,7 @@ export const AdminUsersPage: React.FC = () => {
       setProfiles(userList);
       setAuditLogs(logs);
     } catch (err: any) {
-      console.error('Failed to load admin user data:', err);
+      console.error('Failed to load user management data:', err);
       setErrorMessage(err.message || 'Could not load user profiles from database.');
     } finally {
       setIsLoading(false);
@@ -90,12 +96,12 @@ export const AdminUsersPage: React.FC = () => {
     setConfirmModal({
       isOpen: true,
       title: 'Approve User Registration',
-      description: `Are you sure you want to approve ${target.full_name} (${target.email}) as an EDITOR?`,
-      confirmLabel: 'Approve as Editor',
+      description: `Approve registration for ${target.full_name} (${target.email}) and grant application access?`,
+      confirmLabel: 'Approve Account',
       confirmAction: async () => {
         try {
           await authService.approveUser(target.id, 'EDITOR');
-          showSuccessBanner(`Approved ${target.full_name} successfully!`);
+          showSuccessBanner(`Approved ${target.full_name} successfully! Access granted.`);
           await loadData();
         } catch (e: any) {
           setErrorMessage(e.message || 'Failed to approve user.');
@@ -111,13 +117,13 @@ export const AdminUsersPage: React.FC = () => {
     setConfirmModal({
       isOpen: true,
       title: 'Reject Registration Request',
-      description: `Reject access request for ${target.full_name} (${target.email})?`,
-      confirmLabel: 'Reject Request',
+      description: `Are you sure you want to reject the registration request from ${target.full_name} (${target.email})? They will be unable to access PW Materials.`,
+      confirmLabel: 'Reject Registration',
       isDestructive: true,
       confirmAction: async () => {
         try {
           await authService.rejectUser(target.id);
-          showSuccessBanner(`Rejected request for ${target.full_name}.`);
+          showSuccessBanner(`Rejected registration for ${target.full_name}.`);
           await loadData();
         } catch (e: any) {
           setErrorMessage(e.message || 'Failed to reject user.');
@@ -128,7 +134,50 @@ export const AdminUsersPage: React.FC = () => {
     });
   };
 
-  // 3. Update User Role
+  // 3. Suspend Account Action
+  const handleSuspend = (target: UserProfile) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Suspend User Account',
+      description: `Suspend ${target.full_name} (${target.email})? Their active sessions will be terminated and they will not be able to log in.`,
+      confirmLabel: 'Suspend Account',
+      isDestructive: true,
+      confirmAction: async () => {
+        try {
+          await authService.setUserStatus(target.id, 'SUSPENDED');
+          showSuccessBanner(`User account for ${target.full_name} has been suspended.`);
+          await loadData();
+        } catch (e: any) {
+          setErrorMessage(e.message || 'Failed to suspend user.');
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
+  };
+
+  // 4. Reactivate Account Action
+  const handleReactivate = (target: UserProfile) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reactivate User Account',
+      description: `Reactivate account for ${target.full_name} (${target.email})? They will regain application access.`,
+      confirmLabel: 'Reactivate Account',
+      confirmAction: async () => {
+        try {
+          await authService.setUserStatus(target.id, 'APPROVED');
+          showSuccessBanner(`User account for ${target.full_name} has been reactivated.`);
+          await loadData();
+        } catch (e: any) {
+          setErrorMessage(e.message || 'Failed to reactivate user.');
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
+  };
+
+  // 5. Update User Role
   const handleRoleChange = (target: UserProfile, newRole: UserRole) => {
     if (newRole === 'ROOT_ADMIN' && !isRootAdmin) {
       setErrorMessage('Only ROOT_ADMIN can assign the ROOT_ADMIN role.');
@@ -154,51 +203,18 @@ export const AdminUsersPage: React.FC = () => {
     });
   };
 
-  // 4. Suspend or Reactivate
-  const handleToggleStatus = (target: UserProfile) => {
-    const nextStatus: ApprovalStatus = target.approval_status === 'SUSPENDED' ? 'APPROVED' : 'SUSPENDED';
-    const isSuspending = nextStatus === 'SUSPENDED';
-
-    setConfirmModal({
-      isOpen: true,
-      title: isSuspending ? 'Suspend User Access' : 'Reactivate User Account',
-      description: isSuspending
-        ? `Are you sure you want to temporarily suspend ${target.full_name}? They will not be able to log in or view records.`
-        : `Reactivate ${target.full_name}? Their access will be restored immediately.`,
-      confirmLabel: isSuspending ? 'Suspend Account' : 'Reactivate Account',
-      isDestructive: isSuspending,
-      confirmAction: async () => {
-        try {
-          await authService.setUserStatus(target.id, nextStatus);
-          showSuccessBanner(`User account ${isSuspending ? 'suspended' : 'reactivated'}.`);
-          await loadData();
-        } catch (e: any) {
-          setErrorMessage(e.message || 'Failed to update user status.');
-        } finally {
-          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        }
-      },
-    });
-  };
-
-  // Filtered lists
-  const pendingUsers = useMemo(() => {
-    return profiles.filter((p) => p.approval_status === 'PENDING');
-  }, [profiles]);
-
-  const approvedUsers = useMemo(() => {
-    return profiles.filter((p) => p.approval_status === 'APPROVED' || p.approval_status === 'SUSPENDED');
-  }, [profiles]);
-
-  const rejectedUsers = useMemo(() => {
-    return profiles.filter((p) => p.approval_status === 'REJECTED');
-  }, [profiles]);
+  // Category counts
+  const pendingUsers = useMemo(() => profiles.filter((p) => p.approval_status === 'PENDING'), [profiles]);
+  const approvedUsers = useMemo(() => profiles.filter((p) => p.approval_status === 'APPROVED'), [profiles]);
+  const rejectedUsers = useMemo(() => profiles.filter((p) => p.approval_status === 'REJECTED'), [profiles]);
+  const suspendedUsers = useMemo(() => profiles.filter((p) => p.approval_status === 'SUSPENDED'), [profiles]);
 
   const displayedList = useMemo(() => {
     let list: UserProfile[] = [];
     if (activeTab === 'pending') list = pendingUsers;
     else if (activeTab === 'approved') list = approvedUsers;
     else if (activeTab === 'rejected') list = rejectedUsers;
+    else if (activeTab === 'suspended') list = suspendedUsers;
 
     if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
@@ -206,13 +222,14 @@ export const AdminUsersPage: React.FC = () => {
       (p) =>
         p.full_name?.toLowerCase().includes(q) ||
         p.email?.toLowerCase().includes(q) ||
+        p.mobile_number?.toLowerCase().includes(q) ||
         p.role?.toLowerCase().includes(q)
     );
-  }, [activeTab, pendingUsers, approvedUsers, rejectedUsers, searchQuery]);
+  }, [activeTab, pendingUsers, approvedUsers, rejectedUsers, suspendedUsers, searchQuery]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      {/* Page Header */}
+      {/* Header Card */}
       <div
         className="card"
         style={{
@@ -229,11 +246,11 @@ export const AdminUsersPage: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Shield size={22} color="var(--text-primary)" strokeWidth={2.5} />
             <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', margin: 0 }}>
-              User Management & Access Control
+              User Management & Account Approvals
             </h2>
           </div>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
-            Authorize registered users, assign role permissions, and inspect security audit logs.
+            Authorize registered accounts, assign role permissions, and view audit records.
           </p>
         </div>
 
@@ -248,6 +265,38 @@ export const AdminUsersPage: React.FC = () => {
           <span>Refresh</span>
         </button>
       </div>
+
+      {/* Pending Accounts Notification Alert */}
+      {pendingUsers.length > 0 && (
+        <div
+          style={{
+            background: '#FEF3C7',
+            border: '2px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: 'var(--shadow-hard-xs)',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Clock size={18} color="#D97706" strokeWidth={2.5} />
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {pendingUsers.length} registration {pendingUsers.length === 1 ? 'request is' : 'requests are'} awaiting administrator review.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('pending')}
+            className="btn btn-primary btn-sm"
+            style={{ height: '30px', fontSize: '12px', padding: '0 10px' }}
+          >
+            Review Requests
+          </button>
+        </div>
+      )}
 
       {/* Success Notification */}
       {actionSuccessMessage && (
@@ -290,7 +339,7 @@ export const AdminUsersPage: React.FC = () => {
         </div>
       )}
 
-      {/* Navigation Tabs */}
+      {/* Navigation Filter Tabs */}
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
@@ -311,21 +360,7 @@ export const AdminUsersPage: React.FC = () => {
             }}
           >
             <Clock size={15} />
-            <span>Pending Requests</span>
-            {pendingUsers.length > 0 && (
-              <span
-                style={{
-                  background: '#F59E0B',
-                  color: '#FFFFFF',
-                  borderRadius: '10px',
-                  padding: '1px 6px',
-                  fontSize: '11px',
-                  fontWeight: 900,
-                }}
-              >
-                {pendingUsers.length}
-              </span>
-            )}
+            <span>Pending ({pendingUsers.length})</span>
           </button>
 
           <button
@@ -346,7 +381,7 @@ export const AdminUsersPage: React.FC = () => {
             }}
           >
             <UserCheck size={15} />
-            <span>Approved Users ({approvedUsers.length})</span>
+            <span>Approved ({approvedUsers.length})</span>
           </button>
 
           <button
@@ -372,6 +407,27 @@ export const AdminUsersPage: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setActiveTab('suspended')}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: activeTab === 'suspended' ? '2px solid var(--color-border)' : '2px solid transparent',
+              background: activeTab === 'suspended' ? 'var(--color-primary-selected)' : 'var(--bg-surface)',
+              boxShadow: activeTab === 'suspended' ? 'var(--shadow-hard-xs)' : 'none',
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <AlertTriangle size={15} />
+            <span>Suspended ({suspendedUsers.length})</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('audit')}
             style={{
               padding: '8px 14px',
@@ -392,12 +448,12 @@ export const AdminUsersPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Search Bar for users */}
+        {/* Search */}
         {activeTab !== 'audit' && (
           <div style={{ position: 'relative', width: '220px' }}>
             <input
               type="text"
-              placeholder="Search user or email..."
+              placeholder="Search by name, email, phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -416,7 +472,7 @@ export const AdminUsersPage: React.FC = () => {
         )}
       </div>
 
-      {/* Tab 1, 2, 3: User Cards / Table */}
+      {/* User Management Table */}
       {activeTab !== 'audit' && (
         <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
           {displayedList.length === 0 ? (
@@ -428,12 +484,14 @@ export const AdminUsersPage: React.FC = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-card)', borderBottom: '2.5px solid var(--color-border)' }}>
-                    <th style={{ padding: '12px 16px', fontWeight: 900 }}>User / Email</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 900 }}>Method</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 900 }}>Role</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 900 }}>Status</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 900 }}>Registered</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 900, textAlign: 'right' }}>Actions</th>
+                    <th style={{ padding: '12px 14px', fontWeight: 900 }}>Full Name</th>
+                    <th style={{ padding: '12px 14px', fontWeight: 900 }}>Email Address</th>
+                    <th style={{ padding: '12px 14px', fontWeight: 900 }}>Mobile Number</th>
+                    <th style={{ padding: '12px 14px', fontWeight: 900 }}>Registration Date</th>
+                    <th style={{ padding: '12px 14px', fontWeight: 900 }}>Authentication Method</th>
+                    <th style={{ padding: '12px 14px', fontWeight: 900 }}>Account Status</th>
+                    <th style={{ padding: '12px 14px', fontWeight: 900 }}>Assigned Role</th>
+                    <th style={{ padding: '12px 14px', fontWeight: 900, textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -445,21 +503,64 @@ export const AdminUsersPage: React.FC = () => {
                         backgroundColor: usr.approval_status === 'SUSPENDED' ? '#FEF2F2' : 'transparent',
                       }}
                     >
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{usr.full_name || 'Anonymous User'}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{usr.email}</div>
+                      {/* 1. Full Name */}
+                      <td style={{ padding: '12px 14px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        {usr.full_name || 'Anonymous User'}
                       </td>
-                      <td style={{ padding: '12px 16px', textTransform: 'capitalize' }}>
-                        {usr.registration_method === 'google' ? (
+
+                      {/* 2. Email */}
+                      <td style={{ padding: '12px 14px', color: 'var(--text-primary)' }}>
+                        {usr.email}
+                      </td>
+
+                      {/* 3. Mobile Number */}
+                      <td style={{ padding: '12px 14px', color: 'var(--text-secondary)' }}>
+                        {usr.mobile_number || '—'}
+                      </td>
+
+                      {/* 4. Registration Date */}
+                      <td style={{ padding: '12px 14px', color: 'var(--text-secondary)', fontSize: '12px', whiteSpace: 'nowrap' }}>
+                        {new Date(usr.created_at).toLocaleDateString()}
+                      </td>
+
+                      {/* 5. Authentication Method */}
+                      <td style={{ padding: '12px 14px', textTransform: 'capitalize' }}>
+                        {usr.auth_provider === 'google' || usr.registration_method === 'google' ? (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ color: '#4285F4', fontWeight: 700 }}>G</span> Google
+                            <span style={{ color: '#4285F4', fontWeight: 800 }}>G</span> Google
                           </span>
                         ) : (
-                          'Email'
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Mail size={12} color="var(--text-secondary)" /> Email / Password
+                          </span>
                         )}
                       </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        {activeTab === 'approved' ? (
+
+                      {/* 6. Account Status */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-pill)',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            border: '1.5px solid var(--color-border)',
+                            background:
+                              usr.approval_status === 'APPROVED'
+                                ? 'var(--color-success)'
+                                : usr.approval_status === 'PENDING'
+                                ? '#FEF3C7'
+                                : '#FEE2E2',
+                          }}
+                        >
+                          {usr.approval_status}
+                        </span>
+                      </td>
+
+                      {/* 7. Assigned Role */}
+                      <td style={{ padding: '12px 14px' }}>
+                        {usr.approval_status === 'APPROVED' ? (
                           <select
                             value={usr.role}
                             disabled={usr.role === 'ROOT_ADMIN' && !isRootAdmin}
@@ -482,31 +583,10 @@ export const AdminUsersPage: React.FC = () => {
                           <span style={{ fontWeight: 700 }}>{usr.role}</span>
                         )}
                       </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '2px 8px',
-                            borderRadius: 'var(--radius-pill)',
-                            fontSize: '11px',
-                            fontWeight: 800,
-                            border: '1.5px solid var(--color-border)',
-                            background:
-                              usr.approval_status === 'APPROVED'
-                                ? 'var(--color-success)'
-                                : usr.approval_status === 'PENDING'
-                                ? '#FEF3C7'
-                                : '#FEE2E2',
-                          }}
-                        >
-                          {usr.approval_status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                        {new Date(usr.created_at).toLocaleDateString()}
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                        {activeTab === 'pending' && (
+
+                      {/* 8. Actions */}
+                      <td style={{ padding: '12px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {usr.approval_status === 'PENDING' && (
                           <div style={{ display: 'inline-flex', gap: '6px' }}>
                             <button
                               type="button"
@@ -527,21 +607,34 @@ export const AdminUsersPage: React.FC = () => {
                           </div>
                         )}
 
-                        {activeTab === 'approved' && (
+                        {usr.approval_status === 'APPROVED' && (
                           <div style={{ display: 'inline-flex', gap: '6px' }}>
                             <button
                               type="button"
                               disabled={usr.role === 'ROOT_ADMIN' && !isRootAdmin}
-                              onClick={() => handleToggleStatus(usr)}
+                              onClick={() => handleSuspend(usr)}
                               className="btn btn-outline btn-sm"
-                              style={{ height: '32px', fontSize: '12px' }}
+                              style={{ height: '32px', fontSize: '12px', color: '#DC2626', borderColor: '#DC2626' }}
                             >
-                              {usr.approval_status === 'SUSPENDED' ? 'Reactivate' : 'Suspend'}
+                              Suspend
                             </button>
                           </div>
                         )}
 
-                        {activeTab === 'rejected' && (
+                        {usr.approval_status === 'SUSPENDED' && (
+                          <div style={{ display: 'inline-flex', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleReactivate(usr)}
+                              className="btn btn-primary btn-sm"
+                              style={{ height: '32px', fontSize: '12px' }}
+                            >
+                              Reactivate
+                            </button>
+                          </div>
+                        )}
+
+                        {usr.approval_status === 'REJECTED' && (
                           <button
                             type="button"
                             onClick={() => handleApprove(usr)}
@@ -561,7 +654,7 @@ export const AdminUsersPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 4: Audit Logs */}
+      {/* Tab 5: Audit Logs */}
       {activeTab === 'audit' && (
         <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
           {auditLogs.length === 0 ? (
@@ -619,7 +712,7 @@ export const AdminUsersPage: React.FC = () => {
         </div>
       )}
 
-      {/* Confirmation Modal */}
+      {/* Confirmation Dialog Modal */}
       {confirmModal.isOpen && (
         <div
           style={{

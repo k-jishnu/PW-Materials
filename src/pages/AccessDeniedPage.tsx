@@ -129,3 +129,4 @@ export const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({ onNavigate, 
     </div>
   );
 };
+
