@@ -444,10 +444,11 @@ export async function executeGeminiVisionRecognition(
 
   // Model candidates with fallback if primary experiences temporary capacity (503) or deprecation (404)
   let primaryModel = modelName.trim().replace(/^models\//, '') || 'gemini-3.5-flash';
-  const modelCandidates = [primaryModel];
-  if (primaryModel !== 'gemini-3.5-flash') {
-    modelCandidates.push('gemini-3.5-flash');
-  }
+  const modelCandidates = [
+    primaryModel,
+    'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest',
+  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
   const promptText = mimeType === 'application/pdf'
     ? `${OPENAI_VISION_SYSTEM_PROMPT}\n\nAnalyze this PDF invoice document and extract all available information into valid JSON matching the schema:`
